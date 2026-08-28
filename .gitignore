@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+src-tauri/target/
+
+# Build outputs
+dist/
+src-tauri/gen/
+dist-ssr/
+
+# Tailwind 编译产物（开发时生成，生产由 Vite 打包）
+src/styles/output.css
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# 本地敏感配置与运行时数据（含真实 API key / 本地数据库）
+src-tauri/config/gateway.local.yaml
+src-tauri/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Tauri
+src-tauri/WixTools/

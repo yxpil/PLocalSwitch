@@ -1,0 +1,448 @@
+version: '1.0'
+app:
+  name: PLocalSwitch-Gateway
+  env: dev
+  timezone: Asia/Shanghai
+  log_level: info
+  privacy:
+    store_payload_text: false
+    masking: true
+    mask_token_head_tail:
+    - 4
+    - 4
+    mask_url_path_segment_limit: 2
+http:
+  listen: 127.0.0.1:8787
+  admin_listen: 127.0.0.1:9631
+  request_body_max_bytes: 4194304
+  global_concurrency_limit: 512
+  per_client_key_concurrency_limit: 64
+  client_disconnect_aborts_upstream: true
+  timeouts:
+    connect_ms: 3000
+    read_ms: 60000
+    stream_read_ms: 600000
+  proxy_enabled: false
+  proxy: http://127.0.0.1:7890
+  proxy_socks: null
+  proxy_no_proxy: []
+db:
+  backend: sqlite
+  sqlite_path: ./data/pls_gateway.db
+  postgres_url: ''
+  pool_max_open: 32
+  pool_max_idle: 8
+  migrate_on_start: true
+metrics:
+  enabled: true
+  expose_at: /metrics
+  process_collector: true
+  per_client_key_labels: true
+  per_node_labels: true
+  per_error_label: true
+cors:
+  allow_origins:
+  - '*'
+  allow_methods:
+  - GET
+  - POST
+  - OPTIONS
+  - DELETE
+  - PUT
+  allow_headers:
+  - '*'
+  allow_credentials: false
+model_aliases:
+- alias: deepseek-chat
+  real_model: deepseek-chat
+  group: group-deepseek
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: deepseek-reasoner
+  real_model: deepseek-reasoner
+  group: group-deepseek
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: deepseek-v4-flash
+  real_model: deepseek-v4-flash
+  group: group-packyapi-deepseek
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: deepseek-v4-pro
+  real_model: deepseek-v4-pro
+  group: group-packyapi-deepseek
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: deepseek-v4-flash-vision-exp
+  real_model: deepseek-v4-flash-vision-exp
+  group: group-packyapi-deepseek
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: kimi-k3
+  real_model: kimi-k3
+  group: group-packyapi-kimi
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: claude-sonnet-4-6
+  real_model: claude-sonnet-4-6
+  group: group-packyapi-claude
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: claude-sonnet-5
+  real_model: claude-sonnet-5
+  group: group-packyapi-claude
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: claude-opus-4-6
+  real_model: claude-opus-4-6
+  group: group-packyapi-claude
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: claude-opus-4-7
+  real_model: claude-opus-4-7
+  group: group-packyapi-claude
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: claude-opus-4-8
+  real_model: claude-opus-4-8
+  group: group-packyapi-claude
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: claude-opus-5
+  real_model: claude-opus-5
+  group: group-packyapi-claude
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: claude-haiku-4-5-20251001
+  real_model: claude-haiku-4-5-20251001
+  group: group-packyapi-claude
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: grok-4.5
+  real_model: grok-4.5
+  group: group-packyapi-grok
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+- alias: grok-4.6
+  real_model: grok-4.6
+  group: group-packyapi-grok
+  cache_enable: false
+  ttl_seconds: null
+  charge_on_cache_hit: false
+  enabled: true
+node_groups:
+- id: group-openai-global
+  description: OpenAI Global (Round-Robin on 2 Keys)
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-bedrock-useast1
+  description: null
+  load_balance: primary_standby
+  enabled: true
+  nodes: []
+- id: group-dashscope
+  description: null
+  load_balance: weighted_random
+  enabled: true
+  nodes: []
+- id: group-ollama-local
+  description: null
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-ollama-llama3
+  description: public ollama serving llama3:latest
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-ollama-deepseek-r1
+  description: public ollama serving deepseek-r1:latest
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-ollama-qwen25
+  description: public ollama serving qwen2.5:1.5b
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-ollama-llama2
+  description: public ollama serving llama2:latest
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-ollama-codellama
+  description: public ollama serving codellama:13b
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-ollama-openchat
+  description: public ollama serving openchat:7b
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-deepseek
+  description: DeepSeek Official (deepseek-chat)
+  load_balance: round_robin
+  enabled: true
+  nodes:
+  - id: deepseek-official
+    endpoint: https://api.deepseek.com
+    api_keys:
+    - <YOUR_DEEPSEEK_API_KEY>
+    protocol_hints:
+    - openai
+    enabled: true
+    weight: 1.0
+    hard_disable: false
+    connect_pool: null
+    timeouts_override: null
+    primary: null
+    aws_region: null
+    ak: null
+    sk: null
+- id: group-anthropic
+  description: Anthropic Claude Messages API
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-gemini
+  description: Google Gemini generateContent API
+  load_balance: round_robin
+  enabled: true
+  nodes: []
+- id: group-packyapi-deepseek
+  description: packyapi.ai (DeepSeek key)
+  load_balance: round_robin
+  enabled: true
+  nodes:
+  - id: packyapi-deepseek
+    endpoint: https://www.packyapi.ai
+    api_keys:
+    - <YOUR_PACKYAPI_DEEPSEEK_KEY>
+    protocol_hints:
+    - openai
+    enabled: true
+    weight: 1.0
+    hard_disable: false
+    connect_pool: null
+    timeouts_override: null
+    primary: null
+    aws_region: null
+    ak: null
+    sk: null
+- id: group-packyapi-claude
+  description: packyapi.ai (Claude key, anthropic, 需代理)
+  load_balance: round_robin
+  enabled: true
+  nodes:
+  - id: packyapi-claude
+    endpoint: https://www.packyapi.ai
+    api_keys:
+    - <YOUR_PACKYAPI_CLAUDE_KEY>
+    protocol_hints:
+    - anthropic
+    enabled: true
+    weight: 1.0
+    hard_disable: false
+    connect_pool: null
+    timeouts_override: null
+    primary: null
+    aws_region: null
+    ak: null
+    sk: null
+- id: group-packyapi-grok
+  description: packyapi.ai (Grok key, responses API, 需代理)
+  load_balance: round_robin
+  enabled: true
+  nodes:
+  - id: packyapi-grok
+    endpoint: https://www.packyapi.ai
+    api_keys:
+    - <YOUR_PACKYAPI_GROK_KEY>
+    protocol_hints:
+    - openai_response
+    enabled: true
+    weight: 1.0
+    hard_disable: false
+    connect_pool: null
+    timeouts_override: null
+    primary: null
+    aws_region: null
+    ak: null
+    sk: null
+- id: group-packyapi-kimi
+  description: packyapi.ai (Kimi key)
+  load_balance: round_robin
+  enabled: true
+  nodes:
+  - id: packyapi-kimi
+    endpoint: https://www.packyapi.ai
+    api_keys:
+    - <YOUR_PACKYAPI_KIMI_KEY>
+    protocol_hints:
+    - anthropic
+    enabled: true
+    weight: 1.0
+    hard_disable: false
+    connect_pool: null
+    timeouts_override: null
+    primary: null
+    aws_region: null
+    ak: null
+    sk: null
+flex_adapter:
+  sniff_attempts_per_node: 2
+  global_max_sub_attempts: 6
+  sniff_remember_ttl_seconds: 86400
+  flexible_parse_alert_on_fallback: true
+  stream_lock_after_first_byte: true
+  capability:
+    probe_interval_seconds: 600
+    probe_prompt: Say hi.
+    probe_priority_nodes_only: true
+cache_pool:
+  implementation: in_memory
+  in_memory:
+    max_entries_non_stream: 8192
+    max_entries_stream: 4096
+    max_total_memory_mb: 256
+    evict_interval_seconds: 30
+    hash_key_algo: xxh3_128
+  redis:
+    url: redis://127.0.0.1:6379
+    username: ''
+    password: ''
+    db: 0
+    default_ttl_seconds: 86400
+billing:
+  currency: CNY
+  rates:
+  - model: gpt-4o-mini-2024-07-18
+    upstream_cost_per_m_input: 0.105
+    upstream_cost_per_m_output: 0.42
+    client_price_per_m_input: 0.25
+    client_price_per_m_output: 1.0
+  - model: anthropic.claude-3-5-sonnet-20240620-v1:0
+    upstream_cost_per_m_input: 2.0
+    upstream_cost_per_m_output: 8.0
+    client_price_per_m_input: 3.5
+    client_price_per_m_output: 14.0
+  - model: qwen2.5-72b-instruct
+    upstream_cost_per_m_input: 0.8
+    upstream_cost_per_m_output: 2.0
+    client_price_per_m_input: 1.5
+    client_price_per_m_output: 4.0
+  - model: deepseek-chat
+    upstream_cost_per_m_input: 0.0
+    upstream_cost_per_m_output: 0.0
+    client_price_per_m_input: 0.5
+    client_price_per_m_output: 1.5
+  - model: deepseek-reasoner
+    upstream_cost_per_m_input: 0.0
+    upstream_cost_per_m_output: 0.0
+    client_price_per_m_input: 0.8
+    client_price_per_m_output: 2.4
+  client_keys: []
+  audit:
+    discrepancy_alarm_percent: 15.0
+    override_billing_when_discrepancy: false
+    override_prefer: local
+  tokenizers:
+  - model_glob: gpt-*
+    provider: tiktoken
+    tiktoken_encoding: o200k_base
+    vocab_file: null
+    merges_file: null
+    bpe_file: null
+  - model_glob: claude-*
+    provider: external
+    tiktoken_encoding: null
+    vocab_file: ./tokenizers/claude/vocab.json
+    merges_file: ./tokenizers/claude/merges.bpe
+    bpe_file: ''
+  - model_glob: qwen*
+    provider: external
+    tiktoken_encoding: null
+    vocab_file: null
+    merges_file: null
+    bpe_file: ./tokenizers/qwen/qwen.tiktoken
+node_quality:
+  min_samples: 30
+  scoring_weights:
+    success_rate: 0.35
+    latency_p99: 0.2
+    ttft: 0.1
+    error_counts: 0.2
+    token_discrepancy: 0.05
+    sse_abnormal_rate: 0.1
+  labels:
+    excellent: 90..100
+    good: 75..89
+    normal: 60..74
+    poor: 40..59
+    fault: 0..39
+  autotrim:
+    enabled: true
+    temporary_ban_seconds_when_fault: 300
+    demote_weight_when_poor: 0.5
+policy:
+  retry_on:
+    network_connect_refused: true
+    dns_fail: true
+    connect_timeout: true
+    read_timeout: false
+    tls_error: true
+    http_429: true
+    http_5xx: true
+    auth_401_403: false
+    bad_param_4xx: false
+    sse_premature_close: false
+    json_parse_fail: true
+  analysis_history_window_seconds: 3600
+masking:
+  enabled: true
+  sensitive_headers:
+  - authorization
+  - x-api-key
+  - cookie
+  - set-cookie
+  - x-stainless-runtime
+  sensitive_body_fields:
+  - api_key
+  - key
+  - secret
+  - token
+  - access_token
+  - refresh_token
+  token_show_head: 4
+  token_show_tail: 4
+  url_preserve_path_segments: 2

@@ -1,0 +1,432 @@
+/**
+ * ============================================================
+ *  GatewaySection = 网关配置（/settings#gateway）真实数据
+ *  - 概览卡：监听地址 / 上游节点数 / Client Key 数 / 模型别名数
+ *  - Client Keys 列表（从后端 gateway.yaml 读取）
+ *  - 上游节点组概览（节点数 / 协议 / enabled）
+ *  全部来自 load_config（桌面端 Tauri IPC → 真实 gateway.yaml），无 demo。
+ * ============================================================
+ */
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import PillCard from '@components/ui/PillCard';
+import PillButton from '@components/ui/PillButton';
+import PillBadge from '@components/ui/PillBadge';
+import Icon from '@icons/index';
+import { invoke } from '@commands/index';
+import { accessHost } from '../../utils/net';
+
+/* utils */
+function fmtInt(n: number) { return n.toLocaleString('en-US'); }
+function maskKey(k: string): string {
+  if (!k) return '';
+  if (k.length <= 8) return k.slice(0, 2) + '****' + k.slice(-2);
+  return k.slice(0, 4) + '\u00b7\u00b7\u00b7' + k.slice(-4);
+}
+
+interface NodeView {
+  id: string;
+  endpoint: string;
+  api_key: string;
+  protocol: string;
+  enabled: boolean;
+}
+interface GroupView {
+  id: string;
+  enabled: boolean;
+  nodeCount: number;
+  protocols: string[];
+  nodes: NodeView[];
+}
+
+const GatewaySection: React.FC = () => {
+  const { t } = useTranslation();
+  const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [listen, setListen] = useState('');
+  const [keys, setKeys] = useState<any[]>([]);
+  const [groups, setGroups] = useState<GroupView[]>([]);
+  const [aliases, setAliases] = useState<any[]>([]);
+  const [aliasCount, setAliasCount] = useState(0);
+
+  const load = async () => {
+    try {
+      const cfg: any = await invoke('load_config');
+      setListen(accessHost(cfg?.http?.listen));
+      setAliasCount((cfg?.model_aliases ?? []).length);
+      setAliases((cfg?.model_aliases ?? []).map((a: any) => ({
+        alias: a.alias ?? '',
+        real_model: a.real_model ?? '',
+        group: a.group ?? 'default',
+        enabled: a.enabled !== false,
+      })));
+      setKeys((cfg?.billing?.client_keys ?? []).map((k: any) => ({
+        name: k.name || 'key',
+        group: k.group || 'default',
+        masked: maskKey(k.key || ''),
+        rpm: k.rpm ?? 0,
+        tpm: k.tpm ?? 0,
+        enabled: k.enabled !== false,
+      })));
+      setGroups((cfg?.node_groups ?? []).map((g: any) => ({
+        id: g.id,
+        enabled: g.enabled !== false,
+        nodeCount: (g.nodes ?? []).length,
+        protocols: Array.from(new Set<string>((g.nodes ?? []).flatMap((n: any) => [n.protocol, ...(n.protocol_hints ?? [])]))),
+        nodes: (g.nodes ?? []).map((n: any) => ({
+          id: n.id ?? '',
+          endpoint: n.endpoint ?? '',
+          api_key: (n.api_keys ?? [])[0] ?? '',
+          protocol: (n.protocol_hints ?? [])[0] ?? '',
+          enabled: n.enabled !== false,
+        })),
+      })));
+    } catch { /* 无后端时忽略 */ }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onCopy = async (text: string, label = '已复制') => {
+    try { await navigator.clipboard.writeText(text); } catch { /* noop */ }
+    setCopyToast(label);
+    setTimeout(() => setCopyToast(null), 1500);
+  };
+
+  const toggleKey = async (i: number) => {
+    const next = keys.map((k, idx) => idx === i ? { ...k, enabled: !k.enabled } : k);
+    setKeys(next);
+    try {
+      const cfg: any = await invoke('load_config');
+      cfg.billing.client_keys = next.map((k, idx) => ({
+        ...(cfg.billing.client_keys[idx] ?? {}),
+        enabled: k.enabled,
+      }));
+      await invoke('save_config', { cfg });
+    } catch { /* 静默 */ }
+  };
+
+  const toggleGroup = async (i: number) => {
+    const next = groups.map((g, idx) => idx === i ? { ...g, enabled: !g.enabled } : g);
+    setGroups(next);
+    try {
+      const cfg: any = await invoke('load_config');
+      cfg.node_groups = (cfg.node_groups ?? []).map((g: any, idx: number) => ({
+        ...g, enabled: next[idx]?.enabled ?? g.enabled,
+      }));
+      await invoke('save_config', { cfg });
+    } catch { /* 静默 */ }
+  };
+
+  /* 模型别名：改动后立即回写 gateway.yaml（保留已有的 cache_enable/ttl 等字段） */
+  const persistAliases = async (next: any[]) => {
+    setAliases(next);
+    setAliasCount(next.length);
+    try {
+      const cfg: any = await invoke('load_config');
+      const prev: any[] = cfg.model_aliases ?? [];
+      // 复用已有别名上的其它字段（cache_enable/ttl 等），按 alias 匹配
+      cfg.model_aliases = next.map((a) => {
+        const old = prev.find(p => p.alias === a.alias);
+        return {
+          ...(old ?? {}),
+          alias: a.alias.trim(),
+          real_model: a.real_model.trim(),
+          group: a.group.trim() || 'default',
+          enabled: a.enabled,
+        };
+      }).filter((a: any) => a.alias);
+      await invoke('save_config', { cfg });
+    } catch { /* 静默 */ }
+  };
+
+  const updateAlias = (i: number, patch: any, persist = false) => {
+    const next = aliases.map((a, idx) => idx === i ? { ...a, ...patch } : a);
+    if (persist) persistAliases(next); else setAliases(next);
+  };
+
+  const addAlias = () => persistAliases([...aliases, { alias: '', real_model: '', group: 'default', enabled: true }]);
+  const removeAlias = (i: number) => persistAliases(aliases.filter((_, idx) => idx !== i));
+
+  /* 节点编辑：改写 node_groups 中某个节点的 endpoint / api_keys / protocol_hints / enabled */
+  const persistGroups = async (next: GroupView[]) => {
+    setGroups(next);
+    try {
+      const cfg: any = await invoke('load_config');
+      const prevGroups: any[] = cfg.node_groups ?? [];
+      cfg.node_groups = next.map((g) => {
+        const old = prevGroups.find(p => p.id === g.id) ?? {};
+        const oldNodes: any[] = old.nodes ?? [];
+        const nodes = g.nodes.map((n) => {
+          const on = oldNodes.find((x: any) => x.id === n.id) ?? {};
+          return { ...on, id: n.id, endpoint: n.endpoint.trim(), api_keys: [n.api_key], protocol_hints: [n.protocol], enabled: n.enabled };
+        });
+        return { ...old, id: g.id, enabled: g.enabled, nodes };
+      });
+      await invoke('save_config', { cfg });
+    } catch { /* 静默 */ }
+  };
+  const updateGroupNode = (gi: number, ni: number, patch: any, persist = false) => {
+    const next = groups.map((g, idx) => idx === gi ? { ...g, nodes: g.nodes.map((n, j) => j === ni ? { ...n, ...patch } : n) } : g);
+    if (persist) persistGroups(next); else setGroups(next);
+  };
+  const toggleGroupNode = (gi: number, ni: number) =>
+    persistGroups(groups.map((g, idx) => idx === gi ? { ...g, nodes: g.nodes.map((n, j) => j === ni ? { ...n, enabled: !n.enabled } : n) } : g));
+
+  return (
+    <div className="space-y-5">
+      {/* 概览卡 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <PillCard padding="md">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[11px] text-neutral-500 uppercase tracking-wide">{t('gateway.listen')}</div>
+              <div className="text-lg font-bold mt-2 tabular-nums font-mono break-all">{listen || '—'}</div>
+              <div className="mt-2 text-[11px] text-neutral-500">{t('gateway.listen_hint')}</div>
+            </div>
+            <div className="h-10 w-10 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center shrink-0">
+              <Icon name="link" size={18} />
+            </div>
+          </div>
+        </PillCard>
+
+        <PillCard padding="md">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[11px] text-neutral-500 uppercase tracking-wide">{t('gateway.upstream_nodes')}</div>
+              <div className="text-2xl font-bold mt-2 tabular-nums">{groups.reduce((s, g) => s + g.nodeCount, 0)}</div>
+              <div className="mt-2 text-[11px] text-neutral-500">{t('gateway.upstream_groups', { count: groups.length })}</div>
+            </div>
+            <div className="h-10 w-10 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center shrink-0">
+              <Icon name="server" size={18} />
+            </div>
+          </div>
+        </PillCard>
+
+        <PillCard padding="md">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[11px] text-neutral-500 uppercase tracking-wide">{t('gateway.client_keys')}</div>
+              <div className="text-2xl font-bold mt-2 tabular-nums">{keys.length}</div>
+              <div className="mt-2 text-[11px] text-neutral-500">{t('gateway.downstream_auth')}</div>
+            </div>
+            <div className="h-10 w-10 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center shrink-0">
+              <Icon name="key" size={18} />
+            </div>
+          </div>
+        </PillCard>
+
+        <PillCard padding="md">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[11px] text-neutral-500 uppercase tracking-wide">{t('gateway.model_alias')}</div>
+              <div className="text-2xl font-bold mt-2 tabular-nums">{aliasCount}</div>
+              <div className="mt-2 text-[11px] text-neutral-500">{t('gateway.alias_maps', { count: aliasCount })}</div>
+            </div>
+            <div className="h-10 w-10 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center shrink-0">
+              <Icon name="activity" size={18} />
+            </div>
+          </div>
+        </PillCard>
+      </div>
+
+      {/* 模型别名（可编辑：改名 / 真实模型 / 分组 / 启停 / 新增 / 删除） */}
+      <PillCard padding="none">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200/70 dark:border-neutral-800/70">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+              <Icon name="activity" size={16} />
+            </div>
+            <div>
+              <div className="font-semibold">{t('gateway.aliases_title')}</div>
+              <div className="text-[11px] text-neutral-500">{t('gateway.aliases_hint')}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <PillBadge variant="neutral" size="sm">{t('switch.total_count', { count: aliases.length })}</PillBadge>
+            <PillButton size="sm" onClick={addAlias} leftIcon={<Icon name="plus" size={14} />}>{t('gateway.add_alias')}</PillButton>
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-b-softer">
+          <div className="grid grid-cols-12 px-5 py-2.5 text-[11px] font-medium text-neutral-500
+                          bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200/70 dark:border-neutral-800/70">
+            <div className="col-span-3">{t('gateway.col_alias')}</div>
+            <div className="col-span-3">{t('gateway.col_real_model')}</div>
+            <div className="col-span-2">{t('gateway.col_group')}</div>
+            <div className="col-span-1 text-right">{t('gateway.col_enabled')}</div>
+            <div className="col-span-3 text-right">{t('common.ops')}</div>
+          </div>
+          {aliases.length === 0 ? (
+            <div className="px-5 py-4 text-sm text-neutral-500">{t('gateway.no_alias')}</div>
+          ) : aliases.map((a, i) => (
+            <div key={i} className={`grid grid-cols-12 px-5 py-3 text-xs items-center gap-2 border-b last:border-b-0
+                       border-neutral-200/50 dark:border-neutral-800/50 ${!a.enabled ? 'opacity-55 saturate-50' : ''}`}>
+              <div className="col-span-3 min-w-0">
+                <input value={a.alias} placeholder={t('gateway.alias_placeholder')}
+                  onChange={e => updateAlias(i, { alias: e.target.value })}
+                  onBlur={() => persistAliases(aliases)}
+                  className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+              </div>
+              <div className="col-span-3 min-w-0">
+                <input value={a.real_model} placeholder={t('gateway.real_model_placeholder')}
+                  onChange={e => updateAlias(i, { real_model: e.target.value })}
+                  onBlur={() => persistAliases(aliases)}
+                  className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+              </div>
+              <div className="col-span-2 min-w-0">
+                <input value={a.group} placeholder="default"
+                  onChange={e => updateAlias(i, { group: e.target.value })}
+                  onBlur={() => persistAliases(aliases)}
+                  className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+              </div>
+              <div className="col-span-1 flex justify-end">
+                <button aria-label={t('gateway.toggle_enabled')} onClick={() => persistAliases(aliases.map((x, idx) => idx === i ? { ...x, enabled: !x.enabled } : x))}
+                  className={`h-6 w-6 rounded-pill flex items-center justify-center ${a.enabled ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 dark:bg-neutral-900'}`}>
+                  <Icon name={a.enabled ? 'pause' : 'play'} size={12} />
+                </button>
+              </div>
+              <div className="col-span-3 flex justify-end">
+                <button aria-label={t('common.delete')} onClick={() => removeAlias(i)}
+                  className="h-6 w-6 rounded-pill flex items-center justify-center text-neutral-500 hover:text-red-500 hover:bg-red-500/10">
+                  <Icon name="trash-2" size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </PillCard>
+
+      {/* Client Keys 列表 */}
+      <PillCard padding="none">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200/70 dark:border-neutral-800/70">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+              <Icon name="shield" size={16} />
+            </div>
+            <div>
+              <div className="font-semibold">{t('gateway.keys_title')}</div>
+              <div className="text-[11px] text-neutral-500">{t('gateway.keys_hint')}</div>
+            </div>
+          </div>
+          <PillBadge variant="neutral" size="sm">{t('switch.total_count', { count: keys.length })}</PillBadge>
+        </div>
+        {keys.length === 0 ? (
+          <div className="px-5 py-4 text-sm text-neutral-500">
+            {t('gateway.no_key')}
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-b-softer">
+            <div className="grid grid-cols-12 px-5 py-2.5 text-[11px] font-medium text-neutral-500
+                            bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200/70 dark:border-neutral-800/70">
+              <div className="col-span-3">{t('gateway.col_name')}</div>
+              <div className="col-span-3 hidden lg:block">{t('gateway.col_key')}</div>
+              <div className="col-span-1">{t('gateway.col_group')}</div>
+              <div className="col-span-1 text-right">{t('gateway.col_rpm')}</div>
+              <div className="col-span-2 text-right">{t('gateway.col_enabled')}</div>
+            </div>
+            {keys.map((k, i) => (
+              <div key={i} className={`grid grid-cols-12 px-5 py-3 text-xs items-center border-b last:border-b-0
+                         border-neutral-200/50 dark:border-neutral-800/50 ${!k.enabled ? 'opacity-60' : ''}`}>
+                <div className="col-span-3 min-w-0 truncate font-medium">{k.name}</div>
+                <div className="col-span-3 hidden lg:block font-mono text-xs text-neutral-500 truncate">{k.masked}</div>
+                <div className="col-span-1"><PillBadge variant="muted" size="sm">{k.group}</PillBadge></div>
+                <div className="col-span-1 text-right tabular-nums">{fmtInt(k.rpm)}</div>
+                <div className="col-span-2 flex justify-end">
+                  <button aria-label={t('gateway.toggle_enabled')} onClick={() => toggleKey(i)}
+                    className={`h-6 w-6 rounded-pill flex items-center justify-center ${k.enabled ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 dark:bg-neutral-900'}`}>
+                    <Icon name={k.enabled ? 'pause' : 'play'} size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </PillCard>
+
+      {/* 上游节点组概览 */}
+      <PillCard padding="none">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200/70 dark:border-neutral-800/70">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+              <Icon name="network" size={16} />
+            </div>
+            <div>
+              <div className="font-semibold">{t('gateway.groups_title')}</div>
+              <div className="text-[11px] text-neutral-500">{t('gateway.groups_hint')}</div>
+            </div>
+          </div>
+        </div>
+        {groups.length === 0 ? (
+          <div className="px-5 py-4 text-sm text-neutral-500">{t('gateway.no_groups')}</div>
+        ) : (
+          <div className="overflow-hidden rounded-b-softer">
+            <div className="grid grid-cols-12 px-5 py-2.5 text-[11px] font-medium text-neutral-500
+                            bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200/70 dark:border-neutral-800/70">
+              <div className="col-span-4">{t('gateway.col_group')}</div>
+              <div className="col-span-4 md:col-span-5">{t('gateway.col_protocol')}</div>
+              <div className="col-span-2 text-right">{t('gateway.col_nodes')}</div>
+              <div className="col-span-2 text-right">{t('gateway.col_enabled')}</div>
+            </div>
+            {groups.map((g, i) => (
+              <div key={g.id} className={`border-b last:border-b-0 border-neutral-200/50 dark:border-neutral-800/50 ${!g.enabled ? 'opacity-55 saturate-50' : ''}`}>
+                {/* 组汇总行 */}
+                <div className="grid grid-cols-12 px-5 py-3 text-xs items-center">
+                  <div className="col-span-4 font-mono truncate min-w-0">{g.id}</div>
+                  <div className="col-span-4 md:col-span-5 flex flex-wrap gap-1 min-w-0">
+                    {g.protocols.length === 0
+                      ? <span className="text-neutral-400">—</span>
+                      : g.protocols.map(p => <PillBadge key={p} variant="neutral" size="sm" className="font-mono">{p}</PillBadge>)}
+                  </div>
+                  <div className="col-span-2 text-right tabular-nums">{g.nodeCount}</div>
+                  <div className="col-span-2 flex justify-end">
+                    <button aria-label={t('gateway.toggle_enabled')} onClick={() => toggleGroup(i)}
+                      className={`h-6 w-6 rounded-pill flex items-center justify-center ${g.enabled ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 dark:bg-neutral-900'}`}>
+                      <Icon name={g.enabled ? 'pause' : 'play'} size={12} />
+                    </button>
+                  </div>
+                </div>
+                {/* 节点编辑行：endpoint / api key / protocol / 启停 */}
+                {g.nodes.map((n, j) => (
+                  <div key={j} className="grid grid-cols-12 gap-2 px-5 pb-3 text-xs items-center">
+                    <div className="col-span-12 md:col-span-5">
+                      <input value={n.endpoint} placeholder="https://..."
+                        onChange={e => updateGroupNode(i, j, { endpoint: e.target.value })}
+                        onBlur={() => persistGroups(groups)}
+                        className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+                    </div>
+                    <div className="col-span-6 md:col-span-4">
+                      <input value={n.api_key} type="password" placeholder="API Key"
+                        onChange={e => updateGroupNode(i, j, { api_key: e.target.value })}
+                        onBlur={() => persistGroups(groups)}
+                        className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+                    </div>
+                    <div className="col-span-4 md:col-span-2">
+                      <input value={n.protocol} placeholder="protocol"
+                        onChange={e => updateGroupNode(i, j, { protocol: e.target.value })}
+                        onBlur={() => persistGroups(groups)}
+                        className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+                    </div>
+                    <div className="col-span-2 md:col-span-1 flex justify-end">
+                      <button aria-label={t('gateway.toggle_enabled')} onClick={() => toggleGroupNode(i, j)}
+                        className={`h-6 w-6 rounded-pill flex items-center justify-center ${n.enabled ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 dark:bg-neutral-900'}`}>
+                        <Icon name={n.enabled ? 'pause' : 'play'} size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </PillCard>
+
+      {copyToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
+                        rounded-pill bg-black/90 dark:bg-white/90 text-white dark:text-black
+                        text-xs px-4 py-2 shadow-card animate-[fadeInUp_.25s_ease]">
+          {copyToast}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default GatewaySection;

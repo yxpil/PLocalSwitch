@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <title>PLocalSwitch</title>
+
+    <!--
+      Tailwind 契约：只引用编译后的纯 CSS 产物（output.css），
+      绝对不直接 link input.css（其中含 @tailwind/@apply 编译期指令）
+      构建链路：src/styles/input.css → (tailwind cli) → src/styles/output.css
+    -->
+    <link rel="stylesheet" href="/src/styles/output.css" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+  </head>
+  <body class="bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 antialiased font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

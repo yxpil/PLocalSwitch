@@ -1,0 +1,156 @@
+/**
+ * ============================================================
+ *  Tailwind 源码入口：src/styles/input.css
+ * （只在构建期使用，HTML 绝不直接 link 此文件！）
+ *  构建链路：
+ *    input.css  →  tailwind cli  →  output.css（纯CSS，HTML/main.tsx 引用）
+ * ============================================================
+ *  配色：纯黑白双主题（零彩色语义，只用黑/白/灰强弱表达层级）
+ *  风格：圆角药丸 Pill Design
+ * ============================================================
+ */
+
+/* ========== 1. Tailwind 基础 ========== */
+@tailwind base;
+
+/* ========== 2. Tailwind 组件 ========== */
+@tailwind components;
+
+/* ========== 3. 自定义基础样式 ========== */
+@layer base {
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+
+  body {
+    @apply bg-white dark:bg-black text-neutral-900 dark:text-neutral-100;
+    /* 触摸屏/触摸板：禁止整页被拖出视距（禁 overscroll 回弹 + 本页不允许平移到视口外） */
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+  html, body, #root {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+  main { overscroll-behavior: none; }
+
+  /* 药丸滚动条（黑白） */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: #d4d4d8;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background .2s ease;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+
+  /* 选中文字（纯黑白） */
+  ::selection { background: rgba(0,0,0,0.15); color: inherit; }
+  .dark ::selection { background: rgba(255,255,255,0.22); color: inherit; }
+
+  h1,h2,h3,h4,h5,h6 { @apply font-semibold tracking-tight; }
+  h1 { @apply text-3xl md:text-4xl; }
+  h2 { @apply text-2xl md:text-3xl; }
+  h3 { @apply text-xl md:text-2xl; }
+  h4 { @apply text-lg md:text-xl; }
+  h5 { @apply text-base md:text-lg; }
+  h6 { @apply text-sm md:text-base; }
+  p  { @apply leading-relaxed; }
+
+  /* 链接：纯黑白，无下划线（用颜色/字重区分，避免深浅色下看不清） */
+  a {
+    @apply text-neutral-900 dark:text-neutral-100 font-medium transition-colors duration-200
+           hover:text-neutral-600 dark:hover:text-neutral-300;
+  }
+
+  /* Focus 环（纯黑灰药丸） */
+  :focus-visible {
+    @apply outline-none ring-2 ring-neutral-900/50 dark:ring-neutral-100/60 ring-offset-2
+           ring-offset-white dark:ring-offset-black rounded-pill;
+  }
+}
+
+/* ========== 4. 自定义组件层 ========== */
+@layer components {
+  .p-shell {
+    @apply min-h-screen w-full flex bg-white dark:bg-black transition-colors duration-300;
+  }
+
+  .p-page-header { @apply flex flex-wrap items-center justify-between gap-4 mb-6; }
+  .p-page-title {
+    @apply text-2xl md:text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100;
+  }
+
+  .p-divider { @apply h-px bg-neutral-200 dark:bg-neutral-800/70 my-6 rounded-pill; }
+
+  /* 徽章（纯黑白，无灰度阶梯）：只有 实心(黑底白字) / 空心(白底黑字描边) 两档 */
+  .p-badge {
+    @apply inline-flex items-center gap-1 px-3 py-1 text-[11px] font-medium rounded-pill
+           transition-all duration-200 select-none whitespace-nowrap border;
+  }
+  .p-badge-pass   { @apply p-badge bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-black dark:border-white; }
+  .p-badge-warn   { @apply p-badge bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-black dark:border-white; }
+  .p-badge-fail   { @apply p-badge bg-neutral-900 text-white border-neutral-900 dark:bg-white dark:text-black dark:border-white; }
+  .p-badge-muted  { @apply p-badge bg-white text-neutral-900 border-neutral-300 dark:bg-black dark:text-white dark:border-neutral-700; }
+  .p-badge-neutral{ @apply p-badge bg-white text-neutral-900 border-neutral-300 dark:bg-black dark:text-white dark:border-neutral-700; }
+
+  /* 药丸 Tab（纯黑白激活：浅色=黑底白字，深色=白底黑字，保证对比） */
+  .p-pill-tab {
+    @apply px-4 py-2 text-sm font-medium rounded-pill transition-all duration-200
+           text-neutral-700 dark:text-neutral-200
+           hover:text-neutral-900 dark:hover:text-white
+           hover:bg-neutral-100 dark:hover:bg-neutral-900
+           data-[active=true]:bg-neutral-900 data-[active=true]:text-white
+           dark:data-[active=true]:bg-white dark:data-[active=true]:text-black
+           data-[active=true]:shadow-pill;
+  }
+
+  /* 字段组 */
+  .p-field { @apply flex flex-col gap-1.5 w-full; }
+  .p-label { @apply text-xs font-medium text-neutral-600 dark:text-neutral-300 pl-1; }
+  .p-hint  { @apply text-xs text-neutral-500 dark:text-neutral-400 pl-1; }
+  .p-error { @apply text-xs pl-1 mt-0.5 text-neutral-900 dark:text-white font-medium; }
+
+  /* 动画 */
+  .p-fade-in    { @apply animate-[fadeIn_.28s_cubic-bezier(0.4,0,0.2,1)_both]; }
+  .p-fade-in-up { @apply animate-[fadeInUp_.32s_cubic-bezier(0.4,0,0.2,1)_both]; }
+  .p-pop-in     { @apply animate-[popIn_.24s_cubic-bezier(0.34,1.56,0.64,1)_both]; }
+}
+
+/* ========== 5. Tailwind 工具类 ========== */
+@tailwind utilities;
+
+/* ========== 6. 自定义工具类 ========== */
+@layer utilities {
+  .content-auto { content-visibility: auto; }
+  .text-balance { text-wrap: balance; }
+
+  .h-safe-top   { padding-top: env(safe-area-inset-top); }
+  .h-safe-bottom{ padding-bottom: env(safe-area-inset-bottom); }
+
+  .hairline {
+    border: 1px solid #ececec;
+  }
+  .dark .hairline {
+    border: 1px solid #1f1f1f;
+  }
+}
+
+/* ========== 7. 关键帧 ========== */
+@keyframes fadeIn   { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes popIn    { 0% { opacity: 0; transform: scale(0.94) } 100% { opacity: 1; transform: scale(1) } }

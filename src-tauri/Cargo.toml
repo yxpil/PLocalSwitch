@@ -1,0 +1,124 @@
+[package]
+name = "plocalswitch"
+version = "0.2.0"
+description = "PLocalSwitch - 本地部署 LLM API 代理中转站（OpenAI v1 兼容网关）+ 桌面管理壳"
+authors = ["you"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+rust-version = "1.76"
+
+[lib]
+name = "plocalswitch_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "plocalswitch"
+path = "src/main.rs"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = 1
+
+[dependencies]
+# ============== Tauri 桌面壳 ==============
+tauri = { version = "2", features = ["tray-icon", "image-png", "wry", "custom-protocol", "devtools", "rustls-tls"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-notification = "2"
+
+# ============== Rust 核心异步栈 ==============
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+pin-project-lite = "0.2"
+async-stream = "0.3"
+tokio-stream = { version = "0.1", features = ["net"] }
+tokio-util = { version = "0.7", features = ["codec", "io", "rt"] }
+async-trait = "0.1"
+
+# ============== Web 框架（网关服务端） ==============
+axum = { version = "0.7", features = ["ws", "multipart", "query", "json"] }
+tower = { version = "0.4", features = ["limit", "timeout", "util"] }
+tower-http = { version = "0.5", features = [
+    "cors", "limit", "timeout", "trace",
+    "compression-gzip", "decompression-gzip",
+    "catch-panic", "request-id", "sensitive-headers",
+] }
+http-body-util = "0.1"
+bytes = "1"
+mime = "0.3"
+
+# ============== HTTP 客户端（上游推理请求） ==============
+reqwest = { version = "0.12", default-features = false, features = [
+    "json", "stream", "rustls-tls", "gzip", "brotli",
+    "multipart", "socks", "trust-dns",
+] }
+
+# ============== 序列化与协议 ==============
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1", features = ["preserve_order", "arbitrary_precision", "raw_value"] }
+serde_yaml = "0.9"
+strum = { version = "0.26", features = ["derive"] }
+
+# ============== 数据库（双账本 + trace + 对账） ==============
+sqlx = { version = "0.8", features = [
+    "runtime-tokio", "sqlite", "postgres", "chrono", "uuid", "macros",
+] }
+sqlx-sqlite = { version = "0.8", features = ["regexp"] }
+# 注意：sqlx-cli 是开发 CLI（`cargo install sqlx-cli`），不列入库依赖
+
+# ============== 观测 & Metrics ==============
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
+prometheus = { version = "0.13", features = ["process"] }
+
+# ============== 缓存池（LRU-TTL） ==============
+mini-moka = { version = "0.10", features = ["sync"] }
+
+# ============== 分词器 & 计费 ==============
+tiktoken-rs = "0.6"
+
+# ============== 哈希 / 加密 / 编码 ==============
+blake3 = "1"
+ahash = "0.8"
+hex = "0.4"
+ulid = "1"
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+
+# ============== 实用工具 ==============
+thiserror = "1"
+anyhow = "1"
+once_cell = "1"
+dashmap = "6"
+arc-swap = "1"
+indexmap = { version = "2", features = ["serde"] }
+directories = "5"
+chrono = { version = "0.4", features = ["serde", "clock"] }
+url = { version = "2", features = ["serde"] }
+
+# ============== 测试（仅 dev 依赖） ==============
+[dev-dependencies]
+tokio-test = "0.4"
+proptest = "1"
+tempfile = "3"
+wiremock = "0.6"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+default = ["desktop-shell", "sqlite-backend"]
+sqlite-backend = ["sqlx/sqlite"]
+postgres-backend = ["sqlx/postgres"]
+gateway-server = [] # 纯网关服务器二进制（axum only）：--no-default-features --features gateway-server
+desktop-shell = []  # 桌面壳（Tauri 窗口 + 管理 UI）
+
+
