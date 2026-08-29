@@ -134,7 +134,7 @@ const Switch: React.FC = () => {
     if (!fEndpoint.trim()) { setTestState('fail'); setTestMsg('请先填写上游 URL'); return; }
     setTestState('testing'); setTestMsg('测试中…');
     try {
-      const r: any = await invoke('test_node', { endpoint: fEndpoint, api_key: fKey, protocol: fProtocol });
+      const r: any = await invoke('test_node', { endpoint: fEndpoint, apiKey: fKey, protocol: fProtocol });
       if (r && r.ok) { setTestState('ok'); setTestMsg(r.message || '✓ 测试通过'); }
       else { setTestState('fail'); setTestMsg(r?.message || '测试未通过'); }
     } catch (e: any) {
