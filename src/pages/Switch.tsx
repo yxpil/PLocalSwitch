@@ -48,12 +48,11 @@ type ModelAlias = {
 };
 
 const PROTOCOLS = [
-  { value: 'openai_chat',   label: 'OpenAI Chat (v1/chat/completions)' },
-  { value: 'anthropic_messages', label: 'Anthropic Messages' },
-  { value: 'gemini',        label: 'Gemini generateContent' },
-  { value: 'dashscope',     label: 'DashScope (通义)' },
-  { value: 'ollama_openai_compat', label: 'Ollama (OpenAI 兼容)' },
-  { value: 'deepseek',      label: 'DeepSeek' },
+  { value: 'openai',          label: 'OpenAI Chat Completions' },
+  { value: 'anthropic',       label: 'Anthropic Messages' },
+  { value: 'openai_response', label: 'OpenAI Responses' },
+  { value: 'gemini',          label: 'Gemini generateContent' },
+  { value: 'ollama',          label: 'Ollama Native' },
 ];
 
 const MANUAL_GROUP = 'manual';
