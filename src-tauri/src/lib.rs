@@ -135,6 +135,14 @@ pub fn run_app() -> AppResult<()> {
         {
             tracing::info!("Starting Tauri desktop management shell…");
             let tauri_app = tauri::Builder::default()
+                // 单实例：防止多开（第二个实例启动时唤醒已存在的窗口后自行退出）
+                .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                    if let Some(win) = app.get_webview_window("main") {
+                        let _ = win.show();
+                        let _ = win.unminimize();
+                        let _ = win.set_focus();
+                    }
+                }))
                 .plugin(tauri_plugin_shell::init())
                 .plugin(tauri_plugin_dialog::init())
                 .plugin(tauri_plugin_fs::init())
