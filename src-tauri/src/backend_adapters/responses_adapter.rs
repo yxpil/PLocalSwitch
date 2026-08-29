@@ -113,6 +113,16 @@ impl crate::backend_adapters::BackendAdapter for ResponsesAdapter {
                         if p.kind == "image_url" {
                             let url = p.image_url.as_ref().map(|i| i.url.clone()).unwrap_or_default();
                             json!({"type": "input_image", "image_url": url})
+                        } else if p.kind == "input_audio" {
+                            let a = p.audio.as_ref();
+                            json!({"type": "input_audio", "data": a.and_then(|x| x.data.clone()).unwrap_or_default(), "format": a.and_then(|x| x.format.clone()).unwrap_or_default()})
+                        } else if p.kind == "document" || p.kind == "file" {
+                            let f = p.file.as_ref();
+                            if let Some(u) = f.and_then(|x| x.url.clone()) {
+                                json!({"type": "input_file", "file_id": u})
+                            } else {
+                                json!({"type": "input_file", "file_data": {"data": f.and_then(|x| x.data.clone()).unwrap_or_default(), "mime_type": f.and_then(|x| x.mime_type.clone()).unwrap_or_default()}})
+                            }
                         } else {
                             json!({"type": "input_text", "text": p.text.clone().unwrap_or_default()})
                         }

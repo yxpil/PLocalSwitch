@@ -74,14 +74,42 @@ impl<'de> serde::Deserialize<'de> for MessageContent {
         }
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ContentPart {
     #[serde(rename = "type")]
-    pub kind: String,                     // text | image_url
+    pub kind: String,                     // text | image_url | input_audio | document | file
     #[serde(default)]
     pub text: Option<String>,
     #[serde(default)]
     pub image_url: Option<ImageUrl>,
+    /// 音频输入（OpenAI input_audio / Anthropic audio 块）：base64 + 格式
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "input_audio", alias = "audio")]
+    pub audio: Option<AudioPart>,
+    /// 文档/文件（Anthropic document / Gemini fileData / OpenAI file）：base64 或引用
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<FilePart>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioPart {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,          // base64（无 data: 前缀）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,        // wav / mp3 / mpeg / ogg
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// 远程 URL（如 Anthropic audio.source url）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilePart {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,          // base64（无 data: 前缀）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,     // application/pdf / text/plain ...
+    /// 远程 URL（如 Gemini fileData/fileUri、Anthropic document source url）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageUrl { pub url: String, #[serde(default)] pub detail: Option<String> }
@@ -194,7 +222,7 @@ fn chat_message_from_value(v: &serde_json::Value) -> crate::error::AppResult<Cha
                 let kind = it.get("type").and_then(|x| x.as_str()).unwrap_or("text").to_string();
                 let text = it.get("text").and_then(|x| x.as_str()).map(|s| s.to_string());
                 let image_url = it.get("image_url").and_then(|x| serde_json::from_value::<ImageUrl>(x.clone()).ok());
-                parts.push(ContentPart { kind, text, image_url });
+                parts.push(ContentPart { kind, text, image_url, ..Default::default() });
             }
             MessageContent::MultiPart(parts)
         }

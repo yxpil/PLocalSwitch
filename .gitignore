@@ -41,5 +41,9 @@ src-tauri/data/
 *.db-wal
 *.db-shm
 
+# 本机打包产物（Pill 安装器 / 暂存主程序，勿上传）
+installer-out/
+installer-src/
+
 # Tauri
 src-tauri/WixTools/

@@ -10,7 +10,7 @@
 //!   • 打分不确定时 fallback OpenAI；管理端可通过 header `x-pls-protocol` 强制指定
 //! =============================================================
 use crate::error::{AppError, AppResult, ErrorLabel};
-use crate::models::{ChatCompletionRequest, ChatMessage, ContentPart, ImageUrl, MessageContent, ToolDef, FunctionDef, ToolCall, ToolCallFn, ToolChoice};
+use crate::models::{AudioPart, ChatCompletionRequest, ChatMessage, ContentPart, FilePart, ImageUrl, MessageContent, ToolDef, FunctionDef, ToolCall, ToolCallFn, ToolChoice};
 use serde_json::{json, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display, strum::EnumString)]
@@ -140,6 +140,7 @@ fn normalize_anthropic(b: &Value) -> AppResult<ChatCompletionRequest> {
                                 kind: "text".into(),
                                 text: Some(p.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string()),
                                 image_url: None,
+                                ..Default::default()
                             }),
                             "image" => {
                                 // Anthropic image.source {data(base64), media_type} → data URL
@@ -150,6 +151,45 @@ fn normalize_anthropic(b: &Value) -> AppResult<ChatCompletionRequest> {
                                     kind: "image_url".into(),
                                     text: None,
                                     image_url: Some(ImageUrl { url: format!("data:{mime};base64,{data}"), detail: None }),
+                                    ..Default::default()
+                                });
+                            }
+                            "audio" => {
+                                // Anthropic audio.source {data(base64), media_type} → input_audio
+                                let src = p.get("source");
+                                let data = src.and_then(|s| s.get("data")).and_then(|v| v.as_str()).unwrap_or("");
+                                let mime = src.and_then(|s| s.get("media_type")).and_then(|v| v.as_str()).unwrap_or("audio/wav");
+                                let url = src.and_then(|s| s.get("url")).and_then(|v| v.as_str()).map(String::from);
+                                let format = mime.rsplit('/').next().map(|x| x.to_string());
+                                cps.push(ContentPart {
+                                    kind: "input_audio".into(),
+                                    text: None,
+                                    image_url: None,
+                                    audio: Some(AudioPart {
+                                        data: if !data.is_empty() { Some(data.to_string()) } else { None },
+                                        format,
+                                        mime_type: Some(mime.to_string()),
+                                        url,
+                                    }),
+                                    ..Default::default()
+                                });
+                            }
+                            "document" => {
+                                // Anthropic document.source {type:base64|url, media_type, data|url} → file
+                                let src = p.get("source");
+                                let mime = src.and_then(|s| s.get("media_type")).and_then(|v| v.as_str()).unwrap_or("application/pdf");
+                                let data = src.and_then(|s| s.get("data")).and_then(|v| v.as_str()).map(String::from);
+                                let url = src.and_then(|s| s.get("url")).and_then(|v| v.as_str()).map(String::from);
+                                cps.push(ContentPart {
+                                    kind: "document".into(),
+                                    text: None,
+                                    image_url: None,
+                                    file: Some(FilePart {
+                                        data,
+                                        mime_type: Some(mime.to_string()),
+                                        url,
+                                    }),
+                                    ..Default::default()
                                 });
                             }
                             "tool_use" => {
@@ -254,15 +294,52 @@ fn normalize_gemini(b: &Value, model_hint: Option<&str>) -> AppResult<ChatComple
             if let Some(ps) = c.get("parts").and_then(|v| v.as_array()) {
                 for p in ps {
                     if let Some(t) = p.get("text").and_then(|v| v.as_str()) {
-                        parts.push(ContentPart { kind: "text".into(), text: Some(t.to_string()), image_url: None });
+                        parts.push(ContentPart { kind: "text".into(), text: Some(t.to_string()), ..Default::default() });
                     } else if let Some(inline) = p.get("inlineData") {
-                        let mime = inline.get("mimeType").and_then(|v| v.as_str()).unwrap_or("image/png");
-                        let data = inline.get("data").and_then(|v| v.as_str()).unwrap_or("");
-                        parts.push(ContentPart {
-                            kind: "image_url".into(),
-                            text: None,
-                            image_url: Some(ImageUrl { url: format!("data:{mime};base64,{data}"), detail: None }),
-                        });
+                        let mime = inline.get("mimeType").and_then(|v| v.as_str()).unwrap_or("image/png").to_string();
+                        let data = inline.get("data").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        // Gemini inlineData 按 mimeType 归一化：image → image_url / audio → input_audio / 其它(PDF、视频) → file
+                        if mime.starts_with("audio/") {
+                            parts.push(ContentPart {
+                                kind: "input_audio".into(),
+                                audio: Some(AudioPart {
+                                    data: if data.is_empty() { None } else { Some(data) },
+                                    format: mime.rsplit('/').next().map(|x| x.to_string()),
+                                    mime_type: Some(mime.clone()),
+                                    url: None,
+                                }),
+                                ..Default::default()
+                            });
+                        } else if mime.starts_with("image/") {
+                            parts.push(ContentPart {
+                                kind: "image_url".into(),
+                                image_url: Some(ImageUrl { url: format!("data:{mime};base64,{data}"), detail: None }),
+                                ..Default::default()
+                            });
+                        } else {
+                            parts.push(ContentPart {
+                                kind: "file".into(),
+                                file: Some(FilePart { data: if data.is_empty() { None } else { Some(data) }, mime_type: Some(mime.clone()), url: None }),
+                                ..Default::default()
+                            });
+                        }
+                    } else if let Some(fd) = p.get("fileData") {
+                        // Gemini Files API 上传引用：fileData {fileUri, mimeType}
+                        let mime = fd.get("mimeType").and_then(|v| v.as_str()).map(String::from);
+                        let url = fd.get("fileUri").and_then(|v| v.as_str()).map(String::from);
+                        if mime.as_deref().map(|m| m.starts_with("audio/")).unwrap_or(false) {
+                            parts.push(ContentPart {
+                                kind: "input_audio".into(),
+                                audio: Some(AudioPart { data: None, format: None, mime_type: mime, url }),
+                                ..Default::default()
+                            });
+                        } else {
+                            parts.push(ContentPart {
+                                kind: "file".into(),
+                                file: Some(FilePart { data: None, mime_type: mime, url }),
+                                ..Default::default()
+                            });
+                        }
                     }
                 }
             }
@@ -304,6 +381,26 @@ fn normalize_ollama(b: &Value) -> AppResult<ChatCompletionRequest> {
                     .collect::<Vec<_>>().join(""),
                 other => other.map(|v| v.to_string()).unwrap_or_default(),
             };
+            // Ollama images[]（裸 base64，无 data: 前缀）→ 归一化为 image_url parts
+            let imgs: Vec<String> = m.get("images").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()
+            }).unwrap_or_default();
+            let content = if imgs.is_empty() {
+                MessageContent::Text(text)
+            } else {
+                let mut cps: Vec<ContentPart> = Vec::new();
+                if !text.is_empty() {
+                    cps.push(ContentPart { kind: "text".into(), text: Some(text), ..Default::default() });
+                }
+                for b64 in imgs {
+                    cps.push(ContentPart {
+                        kind: "image_url".into(),
+                        image_url: Some(ImageUrl { url: format!("data:image/png;base64,{b64}"), detail: None }),
+                        ..Default::default()
+                    });
+                }
+                MessageContent::MultiPart(cps)
+            };
             // Ollama 的 tool（角色）消息 content 是 tool 结果文本；assistant 可带 tool_calls
             let tool_calls = m.get("tool_calls").and_then(|v| v.as_array()).map(|tcs| {
                 tcs.iter().filter_map(|tc| {
@@ -322,7 +419,7 @@ fn normalize_ollama(b: &Value) -> AppResult<ChatCompletionRequest> {
             let is_tool = role == "tool";
             messages.push(ChatMessage {
                 role: if is_tool { "tool".into() } else { role },
-                content: MessageContent::Text(text),
+                content,
                 name: None,
                 tool_calls: tool_calls.filter(|t| !t.is_empty()),
                 tool_call_id: if is_tool { m.get("tool_call_id").and_then(|v| v.as_str()).map(String::from) } else { None },

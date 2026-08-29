@@ -80,6 +80,27 @@ fn to_anthropic_blocks(m: &ChatMessage) -> Vec<Value> {
                             blocks.push(json!({"type": "image", "source": {"type": "url", "url": img.url}}));
                         }
                     }
+                } else if p.kind == "input_audio" {
+                    // 音频（OpenAI input_audio / Anthropic audio 块）→ Anthropic audio block
+                    if let Some(a) = &p.audio {
+                        let mime = a.mime_type.clone()
+                            .unwrap_or_else(|| format!("audio/{}", a.format.clone().unwrap_or_else(|| "wav".into())));
+                        if let Some(d) = &a.data {
+                            blocks.push(json!({"type": "audio", "source": {"type": "base64", "media_type": mime, "data": d}}));
+                        } else if let Some(u) = &a.url {
+                            blocks.push(json!({"type": "audio", "source": {"type": "url", "url": u}}));
+                        }
+                    }
+                } else if p.kind == "document" || p.kind == "file" {
+                    // 文档/文件 → Anthropic document block
+                    if let Some(f) = &p.file {
+                        let mime = f.mime_type.clone().unwrap_or_else(|| "application/pdf".into());
+                        if let Some(d) = &f.data {
+                            blocks.push(json!({"type": "document", "source": {"type": "base64", "media_type": mime, "data": d}}));
+                        } else if let Some(u) = &f.url {
+                            blocks.push(json!({"type": "document", "source": {"type": "url", "url": u}}));
+                        }
+                    }
                 } else if let Some(text) = &p.text {
                     blocks.push(json!({"type": "text", "text": text}));
                 }

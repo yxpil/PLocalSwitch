@@ -112,6 +112,27 @@ impl crate::backend_adapters::BackendAdapter for GeminiAdapter {
                                     }
                                 }
                             }
+                        } else if p.kind == "input_audio" {
+                            // 音频 → Gemini inlineData（base64）/ fileData（URL）
+                            if let Some(a) = &p.audio {
+                                let mime = a.mime_type.clone()
+                                    .unwrap_or_else(|| format!("audio/{}", a.format.clone().unwrap_or_else(|| "wav".into())));
+                                if let Some(d) = &a.data {
+                                    parts.push(json!({"inlineData": {"mimeType": mime, "data": d}}));
+                                } else if let Some(u) = &a.url {
+                                    parts.push(json!({"fileData": {"fileUri": u, "mimeType": mime}}));
+                                }
+                            }
+                        } else if p.kind == "document" || p.kind == "file" {
+                            // 文档/文件 → Gemini inlineData（base64）/ fileData（URL）
+                            if let Some(f) = &p.file {
+                                let mime = f.mime_type.clone().unwrap_or_else(|| "application/pdf".into());
+                                if let Some(d) = &f.data {
+                                    parts.push(json!({"inlineData": {"mimeType": mime, "data": d}}));
+                                } else if let Some(u) = &f.url {
+                                    parts.push(json!({"fileData": {"fileUri": u, "mimeType": mime}}));
+                                }
+                            }
                         } else if let Some(t) = &p.text {
                             if !t.is_empty() { parts.push(json!({"text": t})); }
                         }
