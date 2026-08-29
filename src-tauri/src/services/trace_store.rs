@@ -136,7 +136,7 @@ pub async fn billing_summary(app: &AppState, window: &str) -> serde_json::Value 
     let row = sqlx::query(
         r#"SELECT
              COUNT(*) AS total,
-             SUM(CASE WHEN total_tokens >= 0 THEN 1 ELSE 0 END) AS ok,
+             COALESCE(SUM(CASE WHEN total_tokens >= 0 THEN 1 ELSE 0 END),0) AS ok,
              COALESCE(SUM(prompt_tokens),0) AS ti,
              COALESCE(SUM(completion_tokens),0) AS to_,
              COALESCE(SUM(final_charge_cny),0) AS charge
@@ -144,11 +144,11 @@ pub async fn billing_summary(app: &AppState, window: &str) -> serde_json::Value 
         .bind(since).fetch_one(p).await;
     match row {
         Ok(r) => {
-            let total: i64 = r.get("total");
-            let ok: i64 = r.get("ok");
-            let ti: i64 = r.get("ti");
-            let to: i64 = r.get("to_");
-            let charge: f64 = r.get("charge");
+            let total: i64 = r.try_get("total").unwrap_or(0);
+            let ok: i64 = r.try_get("ok").unwrap_or(0);
+            let ti: i64 = r.try_get("ti").unwrap_or(0);
+            let to: i64 = r.try_get("to_").unwrap_or(0);
+            let charge: f64 = r.try_get("charge").unwrap_or(0.0);
             json!({
                 "window_label": window, "requests_total": total.max(0) as u64,
                 "requests_ok": ok.max(0) as u64,
