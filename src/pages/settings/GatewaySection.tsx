@@ -169,18 +169,6 @@ const GatewaySection: React.FC = () => {
     } catch { /* 静默 */ }
   };
 
-  const toggleGroup = async (i: number) => {
-    const next = groups.map((g, idx) => idx === i ? { ...g, enabled: !g.enabled } : g);
-    setGroups(next);
-    try {
-      const cfg: any = await invoke('load_config');
-      cfg.node_groups = (cfg.node_groups ?? []).map((g: any, idx: number) => ({
-        ...g, enabled: next[idx]?.enabled ?? g.enabled,
-      }));
-      await invoke('save_config', { cfg });
-    } catch { /* 静默 */ }
-  };
-
   /* 模型别名：改动后立即回写 gateway.yaml（保留已有的 cache_enable/ttl 等字段） */
   const persistAliases = async (next: any[]) => {
     setAliases(next);
@@ -508,28 +496,21 @@ const GatewaySection: React.FC = () => {
           <div className="overflow-hidden rounded-b-softer">
             <div className="grid grid-cols-12 px-5 py-2.5 text-[11px] font-medium text-neutral-500
                             bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200/70 dark:border-neutral-800/70">
-              <div className="col-span-4">{t('gateway.col_group')}</div>
+              <div className="col-span-5">{t('gateway.col_group')}</div>
               <div className="col-span-4 md:col-span-5">{t('gateway.col_protocol')}</div>
-              <div className="col-span-2 text-right">{t('gateway.col_nodes')}</div>
-              <div className="col-span-2 text-right">{t('gateway.col_enabled')}</div>
+              <div className="col-span-3 text-right">{t('gateway.col_nodes')}</div>
             </div>
             {groups.map((g, i) => (
-              <div key={g.id} className={`border-b last:border-b-0 border-neutral-200/50 dark:border-neutral-800/50 ${!g.enabled ? 'opacity-55 saturate-50' : ''}`}>
-                {/* 组汇总行 */}
+              <div key={g.id} className="border-b last:border-b-0 border-neutral-200/50 dark:border-neutral-800/50">
+                {/* 组汇总行（组级启停已随分组机制移除，节点级启停见下方节点行） */}
                 <div className="grid grid-cols-12 px-5 py-3 text-xs items-center">
-                  <div className="col-span-4 font-mono truncate min-w-0">{g.id}</div>
+                  <div className="col-span-5 font-mono truncate min-w-0">{g.id}</div>
                   <div className="col-span-4 md:col-span-5 flex flex-wrap gap-1 min-w-0">
                     {g.protocols.length === 0
                       ? <span className="text-neutral-400">—</span>
                       : g.protocols.map(p => <PillBadge key={p} variant="neutral" size="sm" className="font-mono">{p}</PillBadge>)}
                   </div>
-                  <div className="col-span-2 text-right tabular-nums">{g.nodeCount}</div>
-                  <div className="col-span-2 flex justify-end">
-                    <button aria-label={t('gateway.toggle_enabled')} onClick={() => toggleGroup(i)}
-                      className={`h-6 w-6 rounded-pill flex items-center justify-center ${g.enabled ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 dark:bg-neutral-900'}`}>
-                      <Icon name={g.enabled ? 'pause' : 'play'} size={12} />
-                    </button>
-                  </div>
+                  <div className="col-span-3 text-right tabular-nums">{g.nodeCount}</div>
                 </div>
                 {/* 节点编辑行：endpoint / api key / protocol / 启停 */}
                 {g.nodes.map((n, j) => (

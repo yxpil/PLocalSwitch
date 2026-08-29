@@ -36,16 +36,10 @@ pub fn load_config(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse
 #[tauri::command]
 pub async fn save_config(state: State<'_, Arc<AppState>>, cfg: AppConfig) -> CommandResult<ApiResponse<AppConfig>> {
     let _ = state.bump_request();
-    let mut cfg = cfg;
-    // 保护：前端可能未携带/清空 model_aliases 或 node_groups，空数组不覆盖已有非空配置，
-    // 避免一次界面保存就把模型别名和上游节点组清空。
-    let cur = (*state.cfg_swap.load_full()).clone();
-    if cfg.model_aliases.is_empty() && !cur.model_aliases.is_empty() {
-        cfg.model_aliases = cur.model_aliases;
-    }
-    if cfg.node_groups.is_empty() && !cur.node_groups.is_empty() {
-        cfg.node_groups = cur.node_groups;
-    }
+    let cfg = cfg;
+    // 注：历史上这里曾对空 model_aliases / node_groups 做「防误清空」回填，
+    // 导致最后一个别名永远删不掉（删除最后一条 → 前端发空数组 → 被当成丢数据还原）。
+    // 现前端所有保存路径均为 load_config 全量回写，无需该保护，删除即真实生效。
     let cfg = crate::config::save_to_disk(&cfg)?;
     state.cfg_swap.store(std::sync::Arc::new(cfg.clone()));
     // 热更新鉴权注册表：新增/修改的 client key 立即生效，无需重启网关
