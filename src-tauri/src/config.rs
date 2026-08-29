@@ -3,6 +3,7 @@
 //!  100% 对应上一条 `src-tauri/config/gateway.yaml` 字段
 //! =============================================================
 use crate::error::AppResult;
+use crate::state::APP_DIRS;
 use serde::{Deserialize, Serialize};
 
 // 配置根结构（按 yaml 分节）
@@ -338,9 +339,8 @@ impl AppConfig {
         let path = if let Ok(p) = std::env::var("PLS_GATEWAY_CONFIG") {
             std::path::PathBuf::from(p)
         } else {
-            let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            p.push("config"); p.push("gateway.yaml");
-            p
+            // 默认写到用户配置目录（目标机上 CARGO_MANIFEST_DIR 不存在，无法读写）
+            APP_DIRS.config_dir.join("gateway.yaml")
         };
         if !path.exists() {
             tracing::warn!("config file not found: {} → using baked-in default", path.display());
@@ -363,9 +363,7 @@ impl AppConfig {
         if let Ok(p) = std::env::var("PLS_GATEWAY_CONFIG") {
             std::path::PathBuf::from(p)
         } else {
-            let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            p.push("config"); p.push("gateway.yaml");
-            p
+            APP_DIRS.config_dir.join("gateway.yaml")
         }
     }
 }
@@ -375,6 +373,9 @@ pub fn save_to_disk(cfg: &AppConfig) -> AppResult<AppConfig> {
     let path = AppConfig::disk_path();
     let txt = serde_yaml::to_string(cfg)
         .map_err(|e| crate::error::AppError::Config(format!("gateway.yaml serialize fail: {e}")))?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(crate::error::AppError::Io)?;
+    }
     std::fs::write(&path, txt).map_err(crate::error::AppError::Io)?;
     tracing::info!("gateway.yaml saved → {}", path.display());
     Ok(cfg.clone())

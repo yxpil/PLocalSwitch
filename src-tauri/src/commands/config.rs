@@ -1,6 +1,7 @@
 //! config 模块命令：加载 / 保存 / 重置网关配置（gateway.yaml）
 #![cfg(feature = "desktop-shell")]
 
+use crate::billing::client_key_mgr::ClientKeyRegistry;
 use crate::config::AppConfig;
 use crate::error::CommandResult;
 use crate::models::ApiResponse;
@@ -33,7 +34,7 @@ pub fn load_config(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse
 
 /// 保存配置（写回内存 + 磁盘 gateway.yaml）
 #[tauri::command]
-pub fn save_config(state: State<'_, Arc<AppState>>, cfg: AppConfig) -> CommandResult<ApiResponse<AppConfig>> {
+pub async fn save_config(state: State<'_, Arc<AppState>>, cfg: AppConfig) -> CommandResult<ApiResponse<AppConfig>> {
     let _ = state.bump_request();
     let mut cfg = cfg;
     // 保护：前端可能未携带/清空 model_aliases 或 node_groups，空数组不覆盖已有非空配置，
@@ -47,16 +48,21 @@ pub fn save_config(state: State<'_, Arc<AppState>>, cfg: AppConfig) -> CommandRe
     }
     let cfg = crate::config::save_to_disk(&cfg)?;
     state.cfg_swap.store(std::sync::Arc::new(cfg.clone()));
+    // 热更新鉴权注册表：新增/修改的 client key 立即生效，无需重启网关
+    let reg = ClientKeyRegistry::from_cfg(&cfg.billing.client_keys);
+    *state.client_keys.write().await = reg;
     tracing::info!("网关配置已保存并热更新");
     Ok(ApiResponse::ok(cfg))
 }
 
 /// 重置配置：重新从 bundled gateway.yaml 加载
 #[tauri::command]
-pub fn reset_config(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse<AppConfig>> {
+pub async fn reset_config(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse<AppConfig>> {
     let _ = state.bump_request();
     let cfg = crate::config::reset_to_default()?;
     state.cfg_swap.store(std::sync::Arc::new(cfg.clone()));
+    let reg = ClientKeyRegistry::from_cfg(&cfg.billing.client_keys);
+    *state.client_keys.write().await = reg;
     tracing::info!("网关配置已重置为默认");
     Ok(ApiResponse::ok(cfg))
 }
