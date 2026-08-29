@@ -104,6 +104,29 @@ const GatewaySection: React.FC = () => {
     } catch { /* 静默 */ }
   };
 
+  /* 前端自动生成 Client Key：生成 sk-… 写入配置并立即热更新，方便直接复制使用 */
+  const genKey = async () => {
+    const hex = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map((b) => b.toString(16).padStart(2, '0')).join('');
+    const newKey = 'sk-' + hex;
+    try {
+      const cfg: any = await invoke('load_config');
+      const arr: any[] = cfg.billing?.client_keys ?? [];
+      arr.push({
+        key: newKey,
+        name: `key${arr.length + 1}`,
+        group: 'default',
+        rpm: 60, tpm: 100000, concurrency: 0, balance_cny: 0,
+        daily_hard_quota_tokens: 0, total_hard_quota_tokens: 0,
+        allow_overdraft: false, enabled: true, rate_plan: 'default',
+      });
+      cfg.billing.client_keys = arr;
+      await invoke('save_config', { cfg });
+      await load();
+      onCopy(newKey, '已生成并复制');
+    } catch { /* 静默 */ }
+  };
+
   const toggleGroup = async (i: number) => {
     const next = groups.map((g, idx) => idx === i ? { ...g, enabled: !g.enabled } : g);
     setGroups(next);
@@ -306,7 +329,12 @@ const GatewaySection: React.FC = () => {
               <div className="text-[11px] text-neutral-500">{t('gateway.keys_hint')}</div>
             </div>
           </div>
-          <PillBadge variant="neutral" size="sm">{t('switch.total_count', { count: keys.length })}</PillBadge>
+          <div className="flex items-center gap-2">
+            <PillButton size="sm" onClick={genKey} leftIcon={<Icon name="key" size={14} />}>
+              自动生成
+            </PillButton>
+            <PillBadge variant="neutral" size="sm">{t('switch.total_count', { count: keys.length })}</PillBadge>
+          </div>
         </div>
         {keys.length === 0 ? (
           <div className="px-5 py-4 text-sm text-neutral-500">
