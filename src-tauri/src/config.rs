@@ -31,11 +31,22 @@ pub struct AppConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomodeConfig {
     #[serde(default = "default_true")] pub enabled: bool,
-    /// 免费源优先：AUTOMODE 候选中标记为免费的节点排在前面试
+    /// 免费源优先：自动识别模型名/端点含 free 的免费源，排前面先试
     #[serde(default)] pub prefer_free: bool,
+    /// 非量化优先：模型名含量化标记（q4/q6/int4/gptq/awq/gguf/quant）的排后
+    #[serde(default)] pub prefer_non_quant: bool,
+    /// 大模型优先：按模型名解析参数量（如 70b > 14b），大的排前
+    #[serde(default)] pub prefer_large: bool,
+    /// 小模型靠后：模型名标注参数量 ≤32B（8b/14b/32b）的排后
+    #[serde(default)] pub deprioritize_small: bool,
+    /// 候选策略：balance=负载均衡（按质量动态排序）；sticky=单一顺序死扛（静态固定顺序，第一个能扛就一直扛）
+    #[serde(default = "default_automode_strategy")] pub strategy: String,
 }
+fn default_automode_strategy() -> String { "balance".into() }
 impl Default for AutomodeConfig {
-    fn default() -> Self { Self { enabled: true, prefer_free: false } }
+    fn default() -> Self {
+        Self { enabled: true, prefer_free: false, prefer_non_quant: false, prefer_large: false, deprioritize_small: false, strategy: "balance".into() }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

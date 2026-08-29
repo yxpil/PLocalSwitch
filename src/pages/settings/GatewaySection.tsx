@@ -50,12 +50,20 @@ const GatewaySection: React.FC = () => {
   const [aliasCount, setAliasCount] = useState(0);
   const [automode, setAutomode] = useState(true);
   const [preferFree, setPreferFree] = useState(false);
+  const [preferNonQuant, setPreferNonQuant] = useState(false);
+  const [preferLarge, setPreferLarge] = useState(false);
+  const [depSmall, setDepSmall] = useState(false);
+  const [strategy, setStrategy] = useState('balance');
 
   const load = async () => {
     try {
       const cfg: any = await invoke('load_config');
       setAutomode(cfg?.automode?.enabled !== false);
       setPreferFree(cfg?.automode?.prefer_free === true);
+      setPreferNonQuant(cfg?.automode?.prefer_non_quant === true);
+      setPreferLarge(cfg?.automode?.prefer_large === true);
+      setDepSmall(cfg?.automode?.deprioritize_small === true);
+      setStrategy(cfg?.automode?.strategy === 'sticky' ? 'sticky' : 'balance');
       setListen(accessHost(cfg?.http?.listen));
       setAliasCount((cfg?.model_aliases ?? []).length);
       setAliases((cfg?.model_aliases ?? []).map((a: any) => ({
@@ -122,15 +130,19 @@ const GatewaySection: React.FC = () => {
     } catch { /* 静默 */ }
   };
 
-  /* 免费源优先：模型名/端点含 free 的源自动排前面先试 */
-  const togglePreferFree = async (v: boolean) => {
-    setPreferFree(v);
+  /* AUTOMODE 排序策略字段统一保存：prefer_free / prefer_non_quant / prefer_large / deprioritize_small / strategy */
+  const setAm = async (field: string, v: any) => {
     try {
       const cfg: any = await invoke('load_config');
-      cfg.automode = { ...(cfg.automode ?? {}), prefer_free: v };
+      cfg.automode = { ...(cfg.automode ?? {}), [field]: v };
       await invoke('save_config', { cfg });
     } catch { /* 静默 */ }
   };
+  const togglePreferFree = async (v: boolean) => { setPreferFree(v); await setAm('prefer_free', v); };
+  const togglePreferNonQuant = async (v: boolean) => { setPreferNonQuant(v); await setAm('prefer_non_quant', v); };
+  const togglePreferLarge = async (v: boolean) => { setPreferLarge(v); await setAm('prefer_large', v); };
+  const toggleDepSmall = async (v: boolean) => { setDepSmall(v); await setAm('deprioritize_small', v); };
+  const changeStrategy = async (v: string) => { setStrategy(v); await setAm('strategy', v); };
 
   /* 前端自动生成 Client Key：生成 sk-… 写入配置并立即热更新，方便直接复制使用 */
   const genKey = async () => {
@@ -241,16 +253,61 @@ const GatewaySection: React.FC = () => {
             <PillSwitch size="sm" checked={automode} onChange={toggleAutomode} label="" />
           </div>
         </div>
-        {/* 免费源优先：自动识别模型名/端点含 free 的源，AUTOMODE/路由候选排前面先试 */}
-        <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-900 flex items-center justify-between gap-4">
-          <div>
-            <div className="text-sm font-medium">免费源优先</div>
-            <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-              自动识别模型名或端点带 free 关键字的免费源，请求时排前面先试；免费源全部失败再落到付费源。
-            </p>
+
+        {/* 候选策略：负载均衡 / 单一顺序死扛 */}
+        <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-900 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="p-field">
+            <label className="p-label">候选策略</label>
+            <select className="pill-input bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+              value={strategy}
+              onChange={(e) => changeStrategy(e.target.value)}
+              disabled={!automode}>
+              <option value="balance">负载均衡（按质量动态调度）</option>
+              <option value="sticky">单一顺序死扛（固定顺序，能扛就一直用）</option>
+            </select>
           </div>
-          <div className="shrink-0">
-            <PillSwitch size="sm" checked={preferFree} onChange={togglePreferFree} label="" />
+          <div className="text-[11px] text-neutral-500 self-end pb-2 leading-relaxed">
+            候选链最多 48 个源，依次重试直到成功；排序规则由下方开关控制，保存即热生效。
+          </div>
+        </div>
+
+        {/* 排序开关组（多级排序键，从上到下依次生效） */}
+        <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-900 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium">免费源优先</div>
+              <p className="text-xs text-neutral-500 mt-0.5">自动识别模型名/端点带 free 的免费源，排前面先试</p>
+            </div>
+            <div className="shrink-0">
+              <PillSwitch size="sm" checked={preferFree} onChange={togglePreferFree} label="" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium">非量化优先</div>
+              <p className="text-xs text-neutral-500 mt-0.5">模型名含量化标记（q4/q6/int4/gptq/awq/gguf）的排后</p>
+            </div>
+            <div className="shrink-0">
+              <PillSwitch size="sm" checked={preferNonQuant} onChange={togglePreferNonQuant} label="" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium">大模型优先</div>
+              <p className="text-xs text-neutral-500 mt-0.5">按模型名解析参数量（70b &gt; 14b），大的排前</p>
+            </div>
+            <div className="shrink-0">
+              <PillSwitch size="sm" checked={preferLarge} onChange={togglePreferLarge} label="" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium">小模型靠后</div>
+              <p className="text-xs text-neutral-500 mt-0.5">标注参数量 ≤32B（8b/14b/32b）的排后</p>
+            </div>
+            <div className="shrink-0">
+              <PillSwitch size="sm" checked={depSmall} onChange={toggleDepSmall} label="" />
+            </div>
           </div>
         </div>
       </PillCard>

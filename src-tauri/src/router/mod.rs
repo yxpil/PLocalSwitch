@@ -189,7 +189,7 @@ pub async fn route_client_request(
             .collect();
         if !filtered.is_empty() { cands = filtered; }
     }
-    sort_and_trim(state, &mut cands);
+    sort_and_trim(state, &mut cands, 10);
     Ok(cands)
 }
 
@@ -208,7 +208,7 @@ fn endpoint_host(endpoint: &str) -> String {
 
 /// AUTOMODE：把模型目录里每个「源×模型」条目展开成候选（各带自己的真实模型名），
 /// 交给柔性层重试链自动降级——源越多越稳。同一 (节点,模型) 去重；
-/// 候选爆炸防护：均匀抽样至多 24 个（保持源分布，不集中单点）。
+/// 候选爆炸防护：均匀抽样至多 48 个（保持源分布，不集中单点）。
 async fn automode_candidates(state: &Arc<AppState>, is_stream: bool) -> AppResult<Vec<CandidateNode>> {
     let snapshot: Vec<(Vec<String>, String)> = state.node_runtime.model_catalog.iter()
         .map(|e| {
@@ -233,12 +233,12 @@ async fn automode_candidates(state: &Arc<AppState>, is_stream: bool) -> AppResul
     }
     let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     cands.retain(|c| seen.insert((c.node_id.clone(), c.real_model.clone())));
-    if cands.len() > 24 {
-        let step = cands.len() as f64 / 24.0;
-        cands = (0..24).map(|i| cands[((i as f64) * step) as usize].clone()).collect();
+    if cands.len() > 48 {
+        let step = cands.len() as f64 / 48.0;
+        cands = (0..48).map(|i| cands[((i as f64) * step) as usize].clone()).collect();
     }
-    // 质量优先排序：好源先试，失败再降级
-    crate::router::fallback_policy::sort_and_trim(state, &mut cands);
+    // 多级策略排序（免费/非量化/大模型/小模型靠后 + sticky/balance），见 fallback_policy
+    crate::router::fallback_policy::sort_and_trim(state, &mut cands, 48);
     Ok(cands)
 }
 
