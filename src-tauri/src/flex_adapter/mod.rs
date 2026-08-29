@@ -72,48 +72,109 @@ pub async fn execute_non_stream(
 /// FlexAdapter 执行流式请求 → 统一返回标准 OpenAI SSE chunk 流
 /// ⚠️ 流式一旦向客户端吐过首字节即锁定当前节点/协议；后续 parse 失败只能直接 close stream，不得切节点
 ///
+/// 候选链在「响应头阶段」逐个尝试（此时还未向客户端输出任何字节，切换候选不违反流式锁死原则）：
+///   - 建连失败 / 30s 无响应头 / 非 2xx 状态 → 记录 sub attempt，换下一个候选
+///   - 某个候选成功返回 2xx → 锁定该候选，把 bytes_stream 包装成 SSE 翻译流
+///
 /// 这里使用 async_stream::try_stream!，把上游 SSE 逐步翻译为 `SseChunk` 后 yield。
 /// 上游 `data: [DONE]` 会结束本次流（不 yield）。
 pub async fn execute_stream(
     state:           &Arc<AppState>,
     mut trace:       GatewayTrace, // moved 到 stream 任务内，结束时入库
-    candidate:       CandidateNode,
-    req:             ChatCompletionRequest,
+    candidates:      &[CandidateNode],
+    mut req:         ChatCompletionRequest,
 ) -> AppResult<Pin<Box<dyn Stream<Item = Result<SseChunk, String>> + Send + 'static>>> {
-    let state = state.clone();
-    let proto = crate::flex_adapter::protocol_sniffer::try_cached(&state, &candidate.node_id).unwrap_or(candidate.protocol);
-    let adapter = crate::backend_adapters::adapter_for(proto);
+    use futures::StreamExt;
 
+    // 流式头阶段最多尝试的候选数（硬上限，防止 48 源 × 30s 超时把客户端吊死）
+    let max_stream_candidates = {
+        let cfg_rt = state.cfg_swap.load();
+        (cfg_rt.flex_adapter.global_max_sub_attempts.max(1) as usize).min(12)
+    };
+    let mask = state.cfg_swap.load().masking.clone();
+
+    let mut last_err_msg = String::from("无可用候选");
+    let mut tried = 0usize;
+
+    for c in candidates.iter().take(max_stream_candidates) {
+        tried += 1;
+        // 每个候选用它自己的 real_model（多源同名场景各候选模型名不同）
+        req.model = c.real_model.clone();
+        let proto = crate::flex_adapter::protocol_sniffer::try_cached(state, &c.node_id).unwrap_or(c.protocol);
+        let adapter = crate::backend_adapters::adapter_for(proto);
+        let masked = c.to_masked(&mask);
+
+        let mut sub = SubAttempt::new(&trace.trace_id, &c.node_id, &c.group_id);
+        sub.masked_endpoint = masked.endpoint.clone();
+        sub.masked_token   = masked.api_key.clone();
+        sub.protocol = proto.to_string();
+
+        // 构建请求 → 发送 → 30s 内必须拿到响应头
+        let resp = match adapter.translate_request(&req, c).await {
+            Ok(rb) => {
+                let send_fut = rb.send();
+                match tokio::time::timeout(std::time::Duration::from_secs(30), send_fut).await {
+                    Ok(Ok(r)) => Some(r),
+                    Ok(Err(e)) => {
+                        tracing::error!(target: "flex_adapter", "stream send fail (node={}): {e}", c.node_id);
+                        last_err_msg = "上游连接失败".into();
+                        None
+                    }
+                    Err(_) => {
+                        tracing::error!(target: "flex_adapter", "stream send timeout (30s, no response header, node={})", c.node_id);
+                        last_err_msg = "上游 30 秒未响应（已超时）".into();
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!(target: "flex_adapter", "stream translate_request fail (node={}): {e}", c.node_id);
+                last_err_msg = "请求构建失败".into();
+                None
+            }
+        };
+
+        // 响应头阶段非 2xx → 换下一个候选（未输出任何字节，可安全重试）
+        if let Some(r) = resp {
+            let status = r.status();
+            sub.http_status_code = Some(status.as_u16());
+            if status.is_success() {
+                // 锁定该候选：finish_ok 后进入流翻译（此后禁止任何重试）
+                sub.finish_ok(status.as_u16(), crate::observability::trace::UsageSnapshot::default());
+                trace.sub_attempt_ids.push(sub.sub_attempt_id.clone());
+                return Ok(build_sse_stream(state.clone(), trace, r, adapter));
+            }
+            tracing::warn!(target: "flex_adapter", "stream upstream status {} (node={}) → try next candidate", status.as_u16(), c.node_id);
+            last_err_msg = format!("upstream status {}", status.as_u16());
+            sub.finish_fail(crate::error::ErrorLabel::Upstream5xx, Some(status.as_u16()), crate::observability::trace::SubAttemptOutcome::FailedRetried);
+            trace.sub_attempt_ids.push(sub.sub_attempt_id);
+            continue;
+        } else {
+            sub.finish_fail(crate::error::ErrorLabel::Unknown, None, crate::observability::trace::SubAttemptOutcome::FailedRetried);
+            trace.sub_attempt_ids.push(sub.sub_attempt_id);
+        }
+    }
+    let _ = tried;
+
+    // 所有候选头阶段全失败：落库 trace 并返回脱敏错误
+    trace.human_readable_reason = Some(last_err_msg.clone());
+    trace.close(502, None);
+    crate::services::trace_store::record(state, &trace).await;
+    Err(crate::error::AppError::Labeled {
+        label: crate::error::ErrorLabel::Upstream5xx,
+        message: format!("所有候选上游均不可用（{last_err_msg}），可稍后重试"),
+    })
+}
+
+/// 把已成功建立的上游响应流包装为 SSE 翻译流（锁定候选，不再重试）
+fn build_sse_stream(
+    state: Arc<AppState>,
+    mut trace: GatewayTrace,
+    resp: reqwest::Response,
+    adapter: Box<dyn crate::backend_adapters::BackendAdapter>,
+) -> Pin<Box<dyn Stream<Item = Result<SseChunk, String>> + Send + 'static>> {
     let stream = async_stream::try_stream! {
         use futures::StreamExt;
-        // 发送/建连失败：完整错误仅写日志，给流内的错误串必须脱敏（不能带上游 URL/token）
-        // 上游响应头阶段加超时：部分免费上游（如 NVIDIA）高峰期会对请求 hang 住不响应，
-        // 流式无重试，若不设超时客户端会永远等待（表现为「转圈不出字」）
-        let rb = match adapter.translate_request(&req, &candidate).await {
-            Ok(rb) => rb,
-            Err(e) => {
-                tracing::error!(target: "flex_adapter", "stream translate_request fail: {e}");
-                Result::<(), String>::Err(sanitize_stream_err(&e))?;
-                unreachable!()
-            }
-        };
-        let send_fut = rb.send();
-        let resp = match tokio::time::timeout(std::time::Duration::from_secs(30), send_fut).await {
-            Ok(Ok(r)) => r,
-            Ok(Err(e)) => {
-                tracing::error!(target: "flex_adapter", "stream send fail: {e}");
-                Result::<(), String>::Err(sanitize_stream_err(&crate::error::AppError::Reqwest(e)))?;
-                unreachable!()
-            }
-            Err(_) => {
-                tracing::error!(target: "flex_adapter", "stream send timeout (30s, no response header)");
-                Result::<(), String>::Err("上游 30 秒未响应（已超时中断），可稍后重试或换一个源".to_string())?;
-                unreachable!()
-            }
-        };
-        if !resp.status().is_success() {
-            Result::<(), String>::Err(format!("upstream status {}", resp.status().as_u16()))?;
-        }
         let mut incoming = resp.bytes_stream();
         let mut line_buf: Vec<u8> = Vec::new();
         let mut done = false;
@@ -162,5 +223,5 @@ pub async fn execute_stream(
         trace.close(200, None);
         crate::services::trace_store::record(&state, &trace).await;
     };
-    Ok(Box::pin(stream))
+    Box::pin(stream)
 }

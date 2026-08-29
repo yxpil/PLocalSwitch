@@ -82,6 +82,11 @@ const Switch: React.FC = () => {
   // 上游节点连通性测试（保存前）
   const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   const [testMsg, setTestMsg] = useState('');
+  // 上游可用模型列表（填好地址/key/协议后拉取展示）
+  const [modelsState, setModelsState] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle');
+  const [modelsMsg, setModelsMsg] = useState('');
+  const [fModels, setFModels] = useState<string[]>([]);
+  const [modelFilter, setModelFilter] = useState('');
 
   // 下游 Key 管理
   const [showKeyForm, setShowKeyForm] = useState(false);
@@ -118,6 +123,7 @@ const Switch: React.FC = () => {
     setEditingNode(null);
     setFEndpoint(''); setFKey(''); setFProtocol('openai_chat');
     setTestState('idle'); setTestMsg('');
+    setModelsState('idle'); setModelsMsg(''); setFModels([]);
     setShowForm(true);
   };
   const openEditForm = (n: UpstreamNode) => {
@@ -126,7 +132,26 @@ const Switch: React.FC = () => {
     setFKey(n.api_keys?.[0] || '');
     setFProtocol(n.protocol_hints?.[0] || 'openai_chat');
     setTestState('idle'); setTestMsg('');
+    setModelsState('idle'); setModelsMsg(''); setFModels([]);
     setShowForm(true);
+  };
+
+  // 拉取该上游的可用模型列表（/v1/models 或 Ollama /api/tags）
+  const fetchModels = async () => {
+    if (!fEndpoint.trim()) { setModelsState('fail'); setModelsMsg('请先填写上游 URL'); return; }
+    setModelsState('loading'); setModelsMsg('拉取中…');
+    try {
+      const r: any = await invoke('fetch_upstream_models', { endpoint: fEndpoint, apiKey: fKey, protocol: fProtocol });
+      const list: string[] = Array.isArray(r?.data) ? r.data : (Array.isArray(r) ? r : []);
+      if (list.length > 0) {
+        setFModels(list); setModelsState('ok');
+        setModelsMsg(`共 ${list.length} 个模型`);
+      } else {
+        setModelsState('fail'); setModelsMsg(r?.message || '未获取到模型列表');
+      }
+    } catch (e: any) {
+      setModelsState('fail'); setModelsMsg(e?.message || String(e));
+    }
   };
 
   // 保存前测试上游连通性/鉴权
@@ -528,15 +553,36 @@ const Switch: React.FC = () => {
           <PillButton size="sm" variant="soft" leftIcon={<Icon name="zap" size={14} />} onClick={runTest} disabled={testState === 'testing'}>
             测试连通性
           </PillButton>
+          <PillButton size="sm" variant="ghost" leftIcon={<Icon name="list" size={14} />} onClick={fetchModels} disabled={modelsState === 'loading'}>
+            获取模型列表
+          </PillButton>
           {testMsg && (
             <span className={`text-xs ${testState === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : testState === 'fail' ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'}`}>
               {testMsg}
+            </span>
+          )}
+          {modelsMsg && (
+            <span className={`text-xs ${modelsState === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : modelsState === 'fail' ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'}`}>
+              {modelsMsg}
             </span>
           )}
           {testState !== 'ok' && testState !== 'idle' && (
             <span className="text-xs text-neutral-400">测试通过后才能保存</span>
           )}
         </div>
+        {/* 模型列表展示（可搜索过滤） */}
+        {modelsState === 'ok' && fModels.length > 0 && (
+          <div className="mt-3">
+            <input placeholder="过滤模型名…" value={modelFilter}
+              onChange={(e) => setModelFilter(e.target.value)}
+              className="w-full md:w-64 text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+            <div className="mt-2 max-h-44 overflow-y-auto flex flex-wrap gap-1.5 p-1">
+              {fModels.filter(m => m.toLowerCase().includes(modelFilter.toLowerCase())).map(m => (
+                <span key={m} className="text-[11px] font-mono bg-neutral-100 dark:bg-neutral-900 rounded-pill px-2.5 py-1">{m}</span>
+              ))}
+            </div>
+          </div>
+        )}
       </PillModal>
 
       {/* ── 新增 / 编辑 下游 Client Key：居中悬浮窗 ── */}

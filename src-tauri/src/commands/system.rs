@@ -168,6 +168,26 @@ pub async fn test_node(endpoint: String, api_key: String, protocol: String) -> C
 /// OpenAI 兼容探针 URL / 节点模型拉取已移至 router 模块（启动刷新共用）
 use crate::router::models_probe_url;
 
+/// 拉取单个上游节点的模型列表（添加/编辑上游时展示该源可用的模型）
+#[tauri::command]
+pub async fn fetch_upstream_models(endpoint: String, api_key: String, protocol: String) -> CommandResult<ApiResponse<Vec<String>>> {
+    let endpoint = endpoint.trim().trim_end_matches('/').to_string();
+    if endpoint.is_empty() {
+        return Ok(ApiResponse::fail("endpoint 为空"));
+    }
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+    let ids = crate::router::fetch_node_models(&client, &endpoint, &api_key, &protocol).await;
+    if ids.is_empty() {
+        Ok(ApiResponse::fail("未获取到模型列表：检查地址 / key / 协议是否正确"))
+    } else {
+        Ok(ApiResponse::ok(ids))
+    }
+}
+
 /// 自动收集所有上游节点的真实模型（去重），供聊天页下拉；同时重建路由模型目录。
 /// 返回条目：{id: "host|model" 或 "model", model, host, group}
 #[tauri::command]

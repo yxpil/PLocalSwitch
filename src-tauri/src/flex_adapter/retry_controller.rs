@@ -75,7 +75,7 @@ pub async fn attempt_chain(
     state:      &Arc<AppState>,
     trace:      &mut GatewayTrace,
     candidates: &[CandidateNode],
-    req:        ChatCompletionRequest,
+    mut req:    ChatCompletionRequest,
     is_stream:  bool,
 ) -> AttemptOutcome {
     // 运行时配置从 cfg_swap 读取（跟随热更新；masking 同理，避免改动后日志脱敏失效）。
@@ -101,6 +101,9 @@ pub async fn attempt_chain(
     // ------- 非流式：真实多轮候选执行（自适应：上游「协议不支持」时自动换下一个候选协议）-------
     'outer: for c in candidates {
         if subs.len() as u32 >= max_subs { break; }
+        // 关键：每个候选必须用它自己的 real_model（AUTOMODE/多源同名场景下各候选模型名不同，
+        // 若沿用第一个候选的模型名，后续候选必然 400/404）
+        req.model = c.real_model.clone();
         let masked = c.to_masked(&mask);
         // 协议候选序列：已记忆协议优先 → hints+兜底去重。用于「协议不支持」时自动换协议。
         let mut protos: Vec<ProtocolKind> = Vec::new();
@@ -121,7 +124,11 @@ pub async fn attempt_chain(
                     let lbl = e.label();
                     let status = sub.http_status_code;
                     let mismatch = protocol_mismatch(&e);
-                    let terminal = !mismatch && matches!(lbl, ErrorLabel::BadParam4xx | ErrorLabel::Auth401403);
+                    // 404 = 「该上游没有这个模型/路径」→ 换下一个候选继续试，不算终态；
+                    // 其余 4xx（参数错）与 401/403（鉴权错）才是整链终止。
+                    let not_found = status == Some(404);
+                    let terminal = !mismatch && !not_found
+                        && matches!(lbl, ErrorLabel::BadParam4xx | ErrorLabel::Auth401403);
                     sub.finish_fail(lbl, status, if terminal { SubAttemptOutcome::FailedTerminal } else { SubAttemptOutcome::FailedRetried });
                     subs.push(sub);
                     last_err = Some(e);
@@ -129,7 +136,7 @@ pub async fn attempt_chain(
                         continue; // 协议不支持 → 换下一个候选协议
                     }
                     if terminal { break 'outer; } // 客户端非法/鉴权失败 → 整链终止（不浪费重试配额）
-                    break; // 其它（5xx/网络/解析）→ 交给下一个候选节点
+                    break; // 其它（404/5xx/网络/解析）→ 交给下一个候选节点
                 }
             }
         }

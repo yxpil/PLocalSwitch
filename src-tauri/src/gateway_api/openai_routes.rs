@@ -83,14 +83,12 @@ pub(crate) async fn execute_chat_pipeline(
     if let Some(first) = candidates.first() {
         trace.resolved_model = first.real_model.clone();
         trace.node_group = first.group_id.clone();
-        req.model = first.real_model.clone();
     }
 
     if trace.is_stream {
-        // -- 5a) 流式：锁定首个候选，直接 SSE chunk 流（永不重试）--
+        // -- 5a) 流式：响应头阶段按候选链逐个尝试（未输出字节前可换候选），成功才建流 --
         let trace_id = trace.trace_id.clone();
-        let first = candidates.into_iter().next().unwrap();
-        let stream = crate::flex_adapter::execute_stream(app, trace, first, req).await.map_err(AppErrorResponse::from)?;
+        let stream = crate::flex_adapter::execute_stream(app, trace, &candidates, req).await.map_err(AppErrorResponse::from)?;
         Ok(ChatPipelineOutput::Sse(stream, trace_id))
     } else {
         // -- 5b) 非流式 --

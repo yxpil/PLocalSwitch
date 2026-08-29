@@ -269,6 +269,7 @@ pub fn run_app() -> AppResult<()> {
                     commands::system::gateway_chat,
                     commands::system::gateway_chat_stream,
                     commands::system::list_upstream_models,
+                    commands::system::fetch_upstream_models,
                     commands::system::test_node,
                 ])
                 .on_window_event(|window, event| {
