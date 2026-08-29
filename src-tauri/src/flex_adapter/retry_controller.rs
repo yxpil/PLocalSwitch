@@ -33,6 +33,7 @@ async fn execute_one(
     let status = resp.status();
     sub.http_status_code = Some(status.as_u16());
     if !status.is_success() {
+        let body_txt = resp.text().await.unwrap_or_default();
         let label = match status.as_u16() {
             401 | 403 => ErrorLabel::Auth401403,
             429        => ErrorLabel::Http429,
@@ -41,7 +42,9 @@ async fn execute_one(
             500..=599  => ErrorLabel::Upstream5xx,
             _          => ErrorLabel::Unknown,
         };
-        return Err(AppError::Labeled { label, message: format!("upstream status {}", status.as_u16()) });
+        // 带上游响应体（截断），供「协议不支持 → 自适应换协议」识别；客户端最终仍按 label 脱敏输出
+        let detail = if body_txt.len() > 240 { body_txt[..240].to_string() } else { body_txt };
+        return Err(AppError::Labeled { label, message: format!("upstream status {} - {}", status.as_u16(), detail) });
     }
     let bytes = resp.bytes().await?;
     let parsed = adapter.parse_response_body(bytes)?;
@@ -52,6 +55,19 @@ async fn execute_one(
         total_tokens: u.total_tokens,
     });
     Ok(parsed)
+}
+
+/// 判断某个上游错误是否表示「协议不支持/不匹配」（如 kimi 模型只走 Anthropic 而节点配成 OpenAI）。
+/// 命中则说明当前协议选错了，应继续换下一个候选协议（自适应）。
+fn protocol_mismatch(e: &AppError) -> bool {
+    let s = e.to_string();
+    s.contains("protocol_not_supported")
+        || s.contains("unsupported")
+        || s.contains("not support")
+        || s.contains("不支持的协议")
+        || s.contains("不支持")
+        || s.contains("协议")
+        || s.contains("protocol")
 }
 
 #[allow(unused_variables)]
@@ -75,31 +91,39 @@ pub async fn attempt_chain(
         return AttemptOutcome::AllFailed(subs, err, hr);
     }
 
-    // ------- 非流式：真实多轮候选执行 -------
-    for c in candidates {
+    // ------- 非流式：真实多轮候选执行（自适应：上游「协议不支持」时自动换下一个候选协议）-------
+    'outer: for c in candidates {
         if subs.len() as u32 >= max_subs { break; }
         let masked = c.to_masked(&state.cfg.masking);
-        let mut sub = SubAttempt::new(&trace.trace_id, &c.node_id, &c.group_id);
-        sub.masked_endpoint = masked.endpoint.clone();
-        sub.masked_token   = masked.api_key.clone();
-        let proto = crate::flex_adapter::protocol_sniffer::try_cached(state, &c.node_id).unwrap_or(c.protocol);
-        sub.protocol = proto.to_string();
+        // 协议候选序列：已记忆协议优先 → hints+兜底去重。用于「协议不支持」时自动换协议。
+        let mut protos: Vec<ProtocolKind> = Vec::new();
+        if let Some(p) = crate::flex_adapter::protocol_sniffer::try_cached(state, &c.node_id) { protos.push(p); }
+        for p in c.candidate_protocols.iter().copied() { if !protos.contains(&p) { protos.push(p); } }
+        if protos.is_empty() { protos.push(c.protocol); }
 
-        match execute_one(c, &req, proto, &mut sub).await {
-            Ok(resp) => return AttemptOutcome::Ok(resp, sub),
-            Err(e) => {
-                let lbl = e.label();
-                let status = sub.http_status_code;
-                let outcome = if matches!(lbl, ErrorLabel::BadParam4xx | ErrorLabel::Auth401403) {
-                    SubAttemptOutcome::FailedTerminal
-                } else {
-                    SubAttemptOutcome::FailedRetried
-                };
-                sub.finish_fail(lbl, status, outcome);
-                last_err = Some(e);
-                subs.push(sub);
-                // 客户端错误立即终止，不浪费重试配额
-                if matches!(lbl, ErrorLabel::BadParam4xx | ErrorLabel::Auth401403) { break; }
+        for (idx, pp) in protos.into_iter().enumerate() {
+            if idx >= 4 { break; } // 单个节点最多尝试 4 个协议
+            let mut sub = SubAttempt::new(&trace.trace_id, &c.node_id, &c.group_id);
+            sub.masked_endpoint = masked.endpoint.clone();
+            sub.masked_token   = masked.api_key.clone();
+            sub.protocol = pp.to_string();
+
+            match execute_one(c, &req, pp, &mut sub).await {
+                Ok(resp) => return AttemptOutcome::Ok(resp, sub),
+                Err(e) => {
+                    let lbl = e.label();
+                    let status = sub.http_status_code;
+                    let mismatch = protocol_mismatch(&e);
+                    let terminal = !mismatch && matches!(lbl, ErrorLabel::BadParam4xx | ErrorLabel::Auth401403);
+                    sub.finish_fail(lbl, status, if terminal { SubAttemptOutcome::FailedTerminal } else { SubAttemptOutcome::FailedRetried });
+                    subs.push(sub);
+                    last_err = Some(e);
+                    if mismatch {
+                        continue; // 协议不支持 → 换下一个候选协议
+                    }
+                    if terminal { break 'outer; } // 客户端非法/鉴权失败 → 整链终止（不浪费重试配额）
+                    break; // 其它（5xx/网络/解析）→ 交给下一个候选节点
+                }
             }
         }
     }
