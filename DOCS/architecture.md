@@ -10,7 +10,7 @@
 
 - **形态**：本地/自部署的 **LLM API 代理网关**，附赠一个 Tauri 桌面管理壳（前端管理界面）。
 - **核心转换**：对外以 **OpenAI v1 为统一契约**（主入口 `/v1/chat/completions`、`/v1/models`、`/v1/embeddings`），内部把请求**双向转换**到各类上游协议（Anthropic / Gemini / Ollama / 百度千帆 / DashScope / 星火 / 混元 / Bedrock / Cohere / vLLM / TGI / 任意 OpenAI 兼容中转），客户端零改动接入。
-- **兼容层**：额外支持 Anthropic / Gemini 客户端用原生协议直接接入（`/v1/messages`、`/gemini/v1beta/models/{model}:generateContent`），网关嗅探协议后归一化到同一管线，再按入站协议回显，便于工具/生态直接对接。
+- **兼容层**：额外支持 Anthropic / Gemini / Ollama 客户端用原生协议直接接入（`/v1/messages`、`/gemini/v1beta/models/{model}:generateContent`、`/api/chat`），网关嗅探协议后归一化到同一管线，再按入站协议回显，便于工具/生态直接对接。
 - **边界(不做)**：不做 LLM 推理、不实现 Agent、不持久化会话内容、不替代业务后端。
 
 ---

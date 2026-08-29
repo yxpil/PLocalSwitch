@@ -100,6 +100,15 @@ pub async fn gemini_generate_handler(
     run_inbound(app, client, Some(InboundProtocol::Gemini), body, Some(model)).await
 }
 
+/// POST /api/chat —— Ollama 原生客户端路径（自动识别）
+pub async fn ollama_chat_handler(
+    State(app): State<Arc<AppState>>,
+    client: AuthedClient,
+    Json(body): Json<Value>,
+) -> Result<Response<Body>, AppErrorResponse> {
+    run_inbound(app, client, Some(InboundProtocol::Ollama), body, None).await
+}
+
 /// POST /v1/{*rest} —— 未知子路径兜底：纯 body 嗅探（"奇奇怪怪的请求"自动匹配入口）
 pub async fn v1_catchall_handler(
     State(app): State<Arc<AppState>>,
@@ -118,12 +127,14 @@ pub fn router() -> axum::Router<Arc<AppState>> {
         // 兜底兜不到已知静态路径，但会把 /v1/chat/completions 之外的一切 POST 吸进来
 }
 
-/// 根级入站路由（anthropic / gemini 专用前缀）
+/// 根级入站路由（anthropic / gemini / ollama 专用前缀）
 pub fn root_router() -> axum::Router<Arc<AppState>> {
     use axum::routing::post;
     axum::Router::new()
         .route("/anthropic/v1/messages", post(anthropic_messages_handler))
         .route("/gemini/v1beta/models/*rest", post(gemini_generate_handler))
+        .route("/api/chat", post(ollama_chat_handler))
+        .route("/api/generate", post(ollama_chat_handler))
 }
 
 /// 错误体辅助（供 error_resp 未来按客户端协议渲染扩展；当前保留 OpenAI 形）

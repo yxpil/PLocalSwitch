@@ -19,12 +19,17 @@ pub enum InboundProtocol {
     OpenAI,
     Anthropic,
     Gemini,
+    Ollama,
 }
 
 // ----------------------------------------------------------------
 // 1) 路径特征识别（优先，快且无歧义）
 // ----------------------------------------------------------------
 pub fn detect_path(path_lower: &str) -> Option<InboundProtocol> {
+    // Ollama 原生客户端：POST /api/chat
+    if path_lower.ends_with("/api/chat") || path_lower.ends_with("/api/generate") {
+        return Some(InboundProtocol::Ollama);
+    }
     // Anthropic SDK 标准：POST /v1/messages
     if path_lower.ends_with("/v1/messages") || path_lower.contains("/anthropic/") {
         return Some(InboundProtocol::Anthropic);
@@ -46,6 +51,7 @@ pub fn sniff_body(body: &Value) -> (InboundProtocol, u8) {
     let mut oai: u8 = 0;
     let mut ant: u8 = 0;
     let mut gem: u8 = 0;
+    let mut ollama: u8 = 0;
 
     if body.get("contents").and_then(|v| v.as_array()).is_some() { gem += 60; }
     if body.get("parts").is_some() { gem += 20; }
@@ -55,20 +61,26 @@ pub fn sniff_body(body: &Value) -> (InboundProtocol, u8) {
     if body.get("messages").and_then(|v| v.as_array()).is_some() {
         oai += 30;
         ant += 40; // Anthropic 也用 messages
+        ollama += 30; // Ollama 也用 messages
     }
+    // Ollama 特征：顶层 options 布尔/选项；或 message 里带 tool_calls；或 stream 为布尔
+    if body.get("options").is_some() { ollama += 40; }
+    if body.get("keep_alive").is_some() { ollama += 25; }
+    if body.get("format").is_some() { ollama += 15; }
     // Anthropic 强制 max_tokens；OpenAI 可选
     if body.get("max_tokens").is_some() { ant += 30; }
     // Anthropic system 通常是顶层字符串；OpenAI 是 messages 里的 role=system
     if body.get("system").and_then(|v| v.as_str()).is_some() { ant += 30; }
-    // Anthropic tools: {name, input_schema}；OpenAI tools: [{type:"function", function:{...}}]
+    // Anthropic tools: {name, input_schema}；OpenAI tools: [{type:"function", function:{...}}]；Ollama 同 OpenAI function 形
     if let Some(tools) = body.get("tools").and_then(|v| v.as_array()) {
         if tools.iter().any(|t| t.get("input_schema").is_some()) { ant += 40; }
-        if tools.iter().any(|t| t.get("function").is_some()) { oai += 40; }
+        if tools.iter().any(|t| t.get("function").is_some()) { oai += 40; ollama += 40; }
     }
-    if body.get("model").is_some() { oai += 25; ant += 10; }
-    if body.get("stream").is_some() { oai += 5; ant += 5; }
+    if body.get("model").is_some() { oai += 25; ant += 10; ollama += 20; }
+    if body.get("stream").is_some() { oai += 5; ant += 5; ollama += 5; }
 
-    let best = [(InboundProtocol::OpenAI, oai), (InboundProtocol::Anthropic, ant), (InboundProtocol::Gemini, gem)]
+    let best = [(InboundProtocol::OpenAI, oai), (InboundProtocol::Anthropic, ant),
+                (InboundProtocol::Gemini, gem), (InboundProtocol::Ollama, ollama)]
         .into_iter()
         .max_by_key(|(_, s)| *s)
         .unwrap_or((InboundProtocol::OpenAI, 0));
@@ -88,6 +100,7 @@ pub fn normalize_request(
             .map_err(|e| AppError::Labeled { label: ErrorLabel::BadParam4xx, message: format!("openai body invalid: {e}") }),
         InboundProtocol::Anthropic => normalize_anthropic(body),
         InboundProtocol::Gemini => normalize_gemini(body, model_hint),
+        InboundProtocol::Ollama => normalize_ollama(body),
     }
 }
 
@@ -277,6 +290,76 @@ fn normalize_gemini(b: &Value, model_hint: Option<&str>) -> AppResult<ChatComple
     })
 }
 
+/// Ollama /api/chat → 内部 IR（Ollama 客户端生态如 Continue / open-webui 等直接对接）
+fn normalize_ollama(b: &Value) -> AppResult<ChatCompletionRequest> {
+    let model = b.get("model").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+    let mut messages: Vec<ChatMessage> = Vec::new();
+    if let Some(msgs) = b.get("messages").and_then(|v| v.as_array()) {
+        for m in msgs {
+            let role = m.get("role").and_then(|v| v.as_str()).unwrap_or("user").to_string();
+            let text = match m.get("content") {
+                Some(Value::String(s)) => s.clone(),
+                Some(Value::Array(arr)) => arr.iter()
+                    .filter_map(|x| x.get("text").and_then(|t| t.as_str()))
+                    .collect::<Vec<_>>().join(""),
+                other => other.map(|v| v.to_string()).unwrap_or_default(),
+            };
+            // Ollama 的 tool（角色）消息 content 是 tool 结果文本；assistant 可带 tool_calls
+            let tool_calls = m.get("tool_calls").and_then(|v| v.as_array()).map(|tcs| {
+                tcs.iter().filter_map(|tc| {
+                    let f = tc.get("function")?;
+                    Some(ToolCall {
+                        id: tc.get("id").and_then(|v| v.as_str()).map(String::from),
+                        kind: Some("function".into()),
+                        index: None,
+                        function: Some(ToolCallFn {
+                            name: f.get("name").and_then(|v| v.as_str()).map(String::from),
+                            arguments: Some(f.get("arguments").cloned().unwrap_or_else(|| json!({})).to_string()),
+                        }),
+                    })
+                }).collect::<Vec<_>>()
+            });
+            let is_tool = role == "tool";
+            messages.push(ChatMessage {
+                role: if is_tool { "tool".into() } else { role },
+                content: MessageContent::Text(text),
+                name: None,
+                tool_calls: tool_calls.filter(|t| !t.is_empty()),
+                tool_call_id: if is_tool { m.get("tool_call_id").and_then(|v| v.as_str()).map(String::from) } else { None },
+                extra: serde_json::json!({}),
+            });
+        }
+    }
+    // options: {temperature, top_p, num_predict} / 顶层 temperature/top_p
+    let opts = b.get("options").unwrap_or(&Value::Null);
+    let opt_get = |k: &str| opts.get(k).or_else(|| b.get(k));
+    // tools：Ollama 用 OpenAI function 形 {type:"function", function:{name,description,parameters}} → 直接解析为 OpenAI 形
+    let tools = b.get("tools").and_then(|v| v.as_array()).map(|ts| {
+        ts.iter().filter_map(|t| {
+            Some(ToolDef {
+                kind: "function".into(),
+                function: FunctionDef {
+                    name: t.pointer("/function/name").and_then(|v| v.as_str())?.to_string(),
+                    description: t.pointer("/function/description").and_then(|v| v.as_str()).map(String::from),
+                    parameters: t.pointer("/function/parameters").cloned().unwrap_or(Value::Null),
+                },
+            })
+        }).collect::<Vec<_>>()
+    });
+    Ok(ChatCompletionRequest {
+        model,
+        messages,
+        stream: b.get("stream").and_then(|v| v.as_bool()).unwrap_or(false),
+        temperature: opt_get("temperature").and_then(|v| v.as_f64()).map(|f| f as f32),
+        top_p: opt_get("top_p").and_then(|v| v.as_f64()).map(|f| f as f32),
+        max_tokens: opt_get("num_predict").and_then(|v| v.as_u64()).map(|v| v.min(u32::MAX as u64) as u32),
+        response_format: None,
+        tools: tools.filter(|t| !t.is_empty()),
+        tool_choice: None,
+        extras: Value::Null,
+    })
+}
+
 // ----------------------------------------------------------------
 // 4) 反归一化：内部 OpenAI 形响应 → 客户端协议形
 // ----------------------------------------------------------------
@@ -285,7 +368,40 @@ pub fn denormalize_response(proto: InboundProtocol, openai: &Value, model: &str)
         InboundProtocol::OpenAI => openai.clone(),
         InboundProtocol::Anthropic => denorm_anthropic(openai, model),
         InboundProtocol::Gemini => denorm_gemini(openai, model),
+        InboundProtocol::Ollama => denorm_ollama(openai, model),
     }
+}
+
+/// OpenAI 形响应 → Ollama /api/chat message 形
+fn denorm_ollama(o: &Value, model: &str) -> Value {
+    let choice0 = o.pointer("/choices/0");
+    let text = choice0
+        .and_then(|c| c.pointer("/message/content"))
+        .and_then(|v| match v {
+            Value::String(s) => Some(s.clone()),
+            other => Some(other.to_string()),
+        })
+        .unwrap_or_default();
+    let mut msg = json!({ "role": "assistant", "content": text });
+    // OpenAI tool_calls → Ollama tool_calls（arguments 是对象）
+    if let Some(tcs) = choice0.and_then(|c| c.pointer("/message/tool_calls")).and_then(|v| v.as_array()) {
+        let arr: Vec<Value> = tcs.iter().filter_map(|tc| {
+            let name = tc.pointer("/function/name").and_then(|v| v.as_str())?;
+            let args: Value = tc.pointer("/function/arguments").and_then(|v| v.as_str())
+                .and_then(|s| serde_json::from_str(s).ok()).unwrap_or_else(|| json!({}));
+            Some(json!({ "function": { "name": name, "arguments": args } }))
+        }).collect();
+        if !arr.is_empty() { msg["tool_calls"] = json!(arr); }
+    }
+    let done = choice0.and_then(|c| c.get("finish_reason")).and_then(|v| v.as_str()).unwrap_or("stop") == "stop";
+    json!({
+        "model": model,
+        "message": msg,
+        "done": done,
+        "prompt_eval_count": o.pointer("/usage/prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+        "eval_count": o.pointer("/usage/completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+        "created_at": chrono::Utc::now().to_rfc3339(),
+    })
 }
 
 fn denorm_anthropic(o: &Value, model: &str) -> Value {
@@ -398,6 +514,9 @@ pub fn error_body(proto: InboundProtocol, openai_err: &Value) -> Value {
                 "message": openai_err.pointer("/error/message").cloned().unwrap_or(Value::String("internal".into())),
                 "status": "INTERNAL"
             }
+        }),
+        InboundProtocol::Ollama => json!({
+            "error": openai_err.pointer("/error/message").cloned().unwrap_or(Value::String("internal".into()))
         }),
     }
 }

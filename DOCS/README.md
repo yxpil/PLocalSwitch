@@ -1,6 +1,6 @@
 # PLocalSwitch 文档中心
 
-> **PLocalSwitch** —— 本地部署的 LLM API 代理中转网关。对外以 **OpenAI v1 为统一契约**，内部**双向转换**到各类上游协议（Anthropic / Gemini / Ollama / 千帆 / DashScope / 星火 / 混元 / Bedrock / Cohere / vLLM / TGI 等），并兼容 Anthropic / Gemini 客户端原生接入。内置多厂商协议适配、双账本计费、节点质量评估、流式安全链路与桌面管理界面。
+> **PLocalSwitch** —— 本地部署的 LLM API 代理中转网关。对外以 **OpenAI v1 为统一契约**，内部**双向转换**到各类上游协议（Anthropic / Gemini / Ollama / 千帆 / DashScope / 星火 / 混元 / Bedrock / Cohere / vLLM / TGI 等），并兼容 Anthropic / Gemini / Ollama 客户端原生接入。内置多厂商协议适配、双账本计费、节点质量评估、流式安全链路与桌面管理界面。
 
 本目录是完整文档索引。所有文档之间通过链接互相跳转，建议从本页开始。
 
