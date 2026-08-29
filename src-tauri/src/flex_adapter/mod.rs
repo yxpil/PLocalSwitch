@@ -87,6 +87,8 @@ pub async fn execute_stream(
     let stream = async_stream::try_stream! {
         use futures::StreamExt;
         // 发送/建连失败：完整错误仅写日志，给流内的错误串必须脱敏（不能带上游 URL/token）
+        // 上游响应头阶段加超时：部分免费上游（如 NVIDIA）高峰期会对请求 hang 住不响应，
+        // 流式无重试，若不设超时客户端会永远等待（表现为「转圈不出字」）
         let rb = match adapter.translate_request(&req, &candidate).await {
             Ok(rb) => rb,
             Err(e) => {
@@ -95,11 +97,17 @@ pub async fn execute_stream(
                 unreachable!()
             }
         };
-        let resp = match rb.send().await {
-            Ok(r) => r,
-            Err(e) => {
+        let send_fut = rb.send();
+        let resp = match tokio::time::timeout(std::time::Duration::from_secs(30), send_fut).await {
+            Ok(Ok(r)) => r,
+            Ok(Err(e)) => {
                 tracing::error!(target: "flex_adapter", "stream send fail: {e}");
                 Result::<(), String>::Err(sanitize_stream_err(&crate::error::AppError::Reqwest(e)))?;
+                unreachable!()
+            }
+            Err(_) => {
+                tracing::error!(target: "flex_adapter", "stream send timeout (30s, no response header)");
+                Result::<(), String>::Err("上游 30 秒未响应（已超时中断），可稍后重试或换一个源".to_string())?;
                 unreachable!()
             }
         };

@@ -136,7 +136,7 @@ pub async fn test_node(endpoint: String, api_key: String, protocol: String) -> C
             r.send().await
         }
         _ => {
-            let mut r = client.get(format!("{endpoint}/v1/models"));
+            let mut r = client.get(models_probe_url(&endpoint));
             if !api_key.is_empty() { r = r.header("Authorization", format!("Bearer {api_key}")); }
             r.send().await
         }
@@ -165,71 +165,97 @@ pub async fn test_node(endpoint: String, api_key: String, protocol: String) -> C
     }
 }
 
-/// 从单个上游节点拉取真实模型列表：Ollama /api/tags、其余 OpenAI 兼容 /v1/models
-async fn fetch_node_models(client: &reqwest::Client, endpoint: &str, key: &str, proto: &str) -> Vec<String> {
-    let url = if proto == "ollama" { format!("{endpoint}/api/tags") } else { format!("{endpoint}/v1/models") };
-    let mut req = client.get(&url);
-    if !key.is_empty() { req = req.header("Authorization", format!("Bearer {key}")); }
-    let Ok(resp) = req.send().await else { return vec![]; };
-    if !resp.status().is_success() { return vec![]; }
-    let Ok(text) = resp.text().await else { return vec![]; };
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { return vec![]; };
-    let mut out = Vec::new();
-    if proto == "ollama" {
-        if let Some(arr) = v.get("models").and_then(|m| m.as_array()) {
-            for m in arr { if let Some(name) = m.get("name").and_then(|x| x.as_str()) { out.push(name.to_string()); } }
-        }
-    } else {
-        if let Some(arr) = v.get("data").and_then(|m| m.as_array()) {
-            for m in arr { if let Some(id) = m.get("id").and_then(|x| x.as_str()) { out.push(id.to_string()); } }
-        }
-    }
-    out
-}
+/// OpenAI 兼容探针 URL / 节点模型拉取已移至 router 模块（启动刷新共用）
+use crate::router::models_probe_url;
 
-/// 自动收集所有上游节点的真实模型（去重），供聊天页下拉；并发拉取避免慢
+/// 自动收集所有上游节点的真实模型（去重），供聊天页下拉；同时重建路由模型目录。
+/// 返回条目：{id: "host|model" 或 "model", model, host, group}
 #[tauri::command]
 pub async fn list_upstream_models(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse<Vec<serde_json::Value>>> {
     let app = state.inner().clone();
-    let cfg = app.cfg_swap.load();
-    let client = reqwest::Client::builder().no_proxy()
-        .connect_timeout(std::time::Duration::from_secs(3))
-        .timeout(std::time::Duration::from_secs(6))
-        .build().unwrap_or_else(|_| reqwest::Client::new());
-
-    let mut tasks = Vec::new();
-    for g in &cfg.node_groups {
-        for n in &g.nodes {
-            if !n.enabled || n.hard_disable { continue; }
-            let proto = n.protocol_hints.first().cloned().unwrap_or_default();
-            let endpoint = n.endpoint.trim_end_matches('/').to_string();
-            let key = n.api_keys.first().cloned().unwrap_or_default();
-            let group = g.id.clone();
-            let c = client.clone();
-            tasks.push(async move { (group, fetch_node_models(&c, &endpoint, &key, &proto).await) });
-        }
-    }
-    // 重建“模型→上游组”目录：每个模型绑定到真正服务它的组，供路由按模型匹配 API
-    app.node_runtime.model_catalog.clear();
-    let results = futures::future::join_all(tasks).await;
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut out: Vec<serde_json::Value> = Vec::new();
-    // 1) 上游真实模型（来自 /v1/models 或 /api/tags）
-    for (group, ids) in results {
-        for id in ids {
-            seen.insert(id.clone());
-            app.node_runtime.model_catalog.insert(id.clone(), group.clone());
-            out.push(serde_json::json!({ "id": id, "group": group.clone() }));
-        }
-    }
-    // 2) 别名真实模型（即使上游 /v1/models 不返回别名，如 deepseek-chat，也能路由）
-    for a in &cfg.model_aliases {
-        if a.enabled {
-            app.node_runtime.model_catalog.entry(a.real_model.clone()).or_insert_with(|| a.group.clone());
-            if seen.insert(a.real_model.clone()) {
-                out.push(serde_json::json!({ "id": a.real_model.clone(), "group": a.group.clone() }));
-            }
-        }
+    let mut out = crate::router::refresh_model_catalog(&app).await;
+    // AUTOMODE 虚拟模型置顶（设置开启时）：聊天页/下游都可见
+    if app.cfg_swap.load().automode.enabled {
+        out.insert(0, serde_json::json!({ "id": "AUTOMODE", "model": "AUTOMODE", "host": "", "group": "" }));
     }
     Ok(ApiResponse::ok(out))
+}
+
+/// 聊天（SSE 流式）：后端回环请求网关 stream:true，逐 chunk 通过 Channel 推给前端。
+/// 事件：{type:"chunk", text, reasoning} / {type:"done"} / {type:"error", message}
+#[tauri::command]
+pub async fn gateway_chat_stream(
+    state: State<'_, Arc<AppState>>,
+    model: String,
+    messages: Vec<serde_json::Value>,
+    key: Option<String>,
+    on_event: tauri::ipc::Channel<serde_json::Value>,
+) -> CommandResult<ApiResponse<()>> {
+    let app = state.inner().clone();
+    let cfg = app.cfg_swap.load();
+    let listen = cfg.http.listen.clone();
+    let key = key.unwrap_or_else(|| cfg.billing.client_keys.first().map(|c| c.key.clone()).unwrap_or_default());
+    let url = format!("http://{listen}/v1/chat/completions");
+    let body = serde_json::json!({ "model": model, "messages": messages, "stream": true });
+    // 回环请求必须禁用代理，避免被系统 HTTP_PROXY/HTTPS_PROXY 劫持导致连接失败
+    let client = reqwest::Client::builder().no_proxy().build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+    let resp = client.post(&url)
+        .header("Authorization", format!("Bearer {key}"))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send().await;
+    match resp {
+        Ok(r) if r.status().is_success() => {
+            use futures::StreamExt;
+            let mut stream = r.bytes_stream();
+            let mut buf = String::new();
+            while let Some(item) = stream.next().await {
+                match item {
+                    Ok(chunk) => {
+                        buf.push_str(&String::from_utf8_lossy(&chunk));
+                        // 按空行切分 SSE 事件（跨 chunk 分帧安全）
+                        while let Some(pos) = buf.find("\n\n") {
+                            let event: String = buf.drain(..pos + 2).collect();
+                            for line in event.lines() {
+                                let Some(data) = line.strip_prefix("data: ") else { continue };
+                                if data.trim() == "[DONE]" {
+                                    let _ = on_event.send(serde_json::json!({ "type": "done" }));
+                                    continue;
+                                }
+                                // 流内错误事件（上游超时/断流等）：data: [ERROR] <msg>
+                                if let Some(err) = data.strip_prefix("[ERROR] ") {
+                                    let _ = on_event.send(serde_json::json!({ "type": "error", "message": err }));
+                                    continue;
+                                }
+                                let Ok(v) = serde_json::from_str::<serde_json::Value>(data) else { continue };
+                                let text = v.pointer("/choices/0/delta/content").and_then(|c| c.as_str()).unwrap_or("").to_string();
+                                let reasoning = v.pointer("/choices/0/delta/reasoning_content").and_then(|c| c.as_str()).unwrap_or("").to_string();
+                                if !text.is_empty() || !reasoning.is_empty() {
+                                    let _ = on_event.send(serde_json::json!({ "type": "chunk", "text": text, "reasoning": reasoning }));
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let _ = on_event.send(serde_json::json!({ "type": "error", "message": e.to_string() }));
+                    }
+                }
+            }
+            let _ = on_event.send(serde_json::json!({ "type": "done" }));
+            Ok(ApiResponse::ok(()))
+        }
+        Ok(r) => {
+            let status = r.status();
+            let text = r.text().await.unwrap_or_default();
+            let msg = format!("网关返回 {status}: {text}");
+            let _ = on_event.send(serde_json::json!({ "type": "error", "message": msg }));
+            Ok(ApiResponse::fail(msg))
+        }
+        Err(e) => {
+            let msg = format!("网关请求失败: {e}");
+            let _ = on_event.send(serde_json::json!({ "type": "error", "message": msg }));
+            Ok(ApiResponse::fail(msg))
+        }
+    }
 }

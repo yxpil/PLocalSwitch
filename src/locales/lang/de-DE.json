@@ -67,6 +67,7 @@
     "description": "Nach Bereichen verwalten, jeder Bereich einzeln deaktivierbar",
     "empty": "Keine Einstellungen in diesem Bereich",
     "tab_general": "Allgemein",
+    "tab_gateway": "Gateway",
     "tab_look": "Darstellung",
     "tab_network": "Netzwerk",
     "tab_modules": "Module",

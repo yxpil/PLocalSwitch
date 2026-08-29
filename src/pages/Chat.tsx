@@ -30,8 +30,56 @@ const MarkdownView: React.FC<{ content: string }> = ({ content }) => (
   }}>{content}</ReactMarkdown>
 );
 
+/** 可搜索模型选择器：上游模型动辄数百条，原生 select 无法定位，输入即时过滤（模型名/源域名） */
+const ModelPicker: React.FC<{
+  items: { id: string; label: string }[];
+  value: string;
+  onChange: (id: string) => void;
+}> = ({ items, value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  const kw = q.trim().toLowerCase();
+  const filtered = kw ? items.filter((m) => m.label.toLowerCase().includes(kw)) : items;
+  const current = items.find((m) => m.id === value);
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => { setOpen((v) => !v); setQ(''); }}
+        className="flex items-center gap-2 rounded-pill bg-neutral-100 dark:bg-neutral-900 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-neutral-400/40 max-w-[24rem]">
+        <span className="truncate">{current?.label ?? '（未加载模型）'}</span>
+        <Icon name="chevron-down" size={14} className="shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-[30rem] max-w-[85vw] rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-lg overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-neutral-200 dark:border-neutral-800">
+            <Icon name="search" size={14} className="text-neutral-400 shrink-0" />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
+              placeholder="搜索模型 / 源域名…"
+              className="flex-1 bg-transparent text-sm outline-none" />
+          </div>
+          <div className="max-h-72 overflow-y-auto py-1">
+            {filtered.length === 0 && <div className="px-3 py-2 text-xs text-neutral-400">无匹配模型</div>}
+            {filtered.map((m) => (
+              <div key={m.id} onClick={() => { onChange(m.id); setOpen(false); }}
+                className={`px-3 py-1.5 text-sm cursor-pointer truncate hover:bg-neutral-100 dark:hover:bg-neutral-900 ${m.id === value ? 'bg-neutral-100 dark:bg-neutral-900 font-medium' : ''}`}>
+                {m.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Chat: React.FC = () => {
-  const [models, setModels] = useState<string[]>([]);
+  const [models, setModels] = useState<{ id: string; label: string }[]>([]);
   const [model, setModel] = useState('');
   const [key, setKey] = useState(DEFAULT_KEY);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -40,29 +88,37 @@ const Chat: React.FC = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // 先立即用网关配置别名填充（保证下拉不为空、秒开），再后台拉上游真实模型升级。
+  // 上游条目按「源」展开：id 形如 host|model（源定向路由），label 显示「host · model」便于多源辨识。
   // 注意：@commands/index 的 invoke 会解包 ApiResponse，因此 load_config 直接返回配置对象、
-  //       而 list_upstream_models 直接返回 [{id, group}, ...] 数组。
+  //       而 list_upstream_models 直接返回 [{id, model, host, group}, ...] 数组。
   const loadModels = async () => {
     // 1) 别名兜底：来自网关配置（invoke 已解包，cfg 即 AppConfig）
     try {
       const cfg: any = await invoke('load_config');
-      const aliases: string[] = (cfg?.model_aliases ?? []).map((a: any) => a.alias).filter(Boolean);
+      const aliases: { id: string; label: string }[] = (cfg?.model_aliases ?? [])
+        .filter((a: any) => a.enabled !== false && a.alias)
+        .map((a: any) => ({ id: a.alias, label: a.alias }));
       if (aliases.length) {
         setModels(aliases);
-        setModel((cur) => cur || aliases[0] || '');
+        setModel((cur) => cur || aliases[0]?.id || '');
       }
       // 自动填写 Client Key：没手输时用第一个启用的 key（网关启动会自动生成默认 key，开箱即用）
       const keys: any[] = (cfg?.billing?.client_keys ?? []).filter((k: any) => k.enabled !== false);
       if (keys.length) setKey((cur) => cur || keys[0].key || '');
     } catch { /* 忽略 */ }
-    // 2) 上游真实模型列表（invoke 解包后 resp 即数组 [{id,group}]）；成功则替换
+    // 2) 上游真实模型列表（按「源 · 模型」展开，同名模型多源各自成条，测试时可定向到指定源）
     try {
       const resp: any = await invoke('list_upstream_models');
       const arr: any[] = Array.isArray(resp) ? resp : ((resp?.data as any[]) ?? []);
-      const ids: string[] = arr.map((m: any) => m.id).filter(Boolean);
-      if (ids.length) {
-        setModels(ids);
-        setModel((cur) => (cur && ids.includes(cur) ? cur : ids[0]));
+      const entries: { id: string; label: string }[] = arr
+        .filter((m: any) => m?.id)
+        .map((m: any) => ({
+          id: m.id as string,
+          label: m.host ? `${m.host} · ${m.model}` : (m.model ?? m.id),
+        }));
+      if (entries.length) {
+        setModels(entries);
+        setModel((cur) => (cur && entries.some((e) => e.id === cur) ? cur : entries[0].id));
       }
     } catch { /* 忽略上游拉取失败，保留别名 */ }
   };
@@ -78,17 +134,37 @@ const Chat: React.FC = () => {
     setInput('');
     setLoading(true);
     try {
-      // invoke 会解包 ApiResponse：成功 → resp 即 {content, raw}；失败 → invoke 直接 throw（含后端 error 信息）
-      const resp: any = await invoke('gateway_chat', {
+      // SSE 流式：后端回环请求网关 stream:true，通过 Channel 逐 chunk 推送
+      const { Channel } = await import('@tauri-apps/api/core');
+      type Ev = { type: 'chunk' | 'done' | 'error'; text?: string; reasoning?: string; message?: string };
+      const ch = new Channel<Ev>();
+      let acc = '';        // 正文
+      let reasoning = '';  // 思考内容（reasoning_content，如 kimi-k3）
+      ch.onmessage = (m) => {
+        if (m.type === 'chunk') {
+          if (m.reasoning) reasoning += m.reasoning;
+          if (m.text) acc += m.text;
+          // 思考内容以引用块置顶展示，正文随后流式追加
+          const shown = (reasoning ? reasoning.split('\n').map((l) => `> ${l}`).join('\n') + '\n\n' : '') + acc;
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = { role: 'assistant', content: shown };
+            return next;
+          });
+        } else if (m.type === 'error') {
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = { role: 'assistant', content: `⚠️ ${m.message ?? '流式请求失败'}` };
+            return next;
+          });
+        }
+        // done：无需处理（最终内容已在 chunk 中累积）
+      };
+      await invoke('gateway_chat_stream', {
         model,
-        messages: history.map(m => ({ role: m.role, content: m.content })),
+        messages: history.map((m) => ({ role: m.role, content: m.content })),
         key,
-      });
-      const content = resp?.content ?? '';
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content };
-        return next;
+        onEvent: ch,
       });
     } catch (e: any) {
       setMessages((prev) => {
@@ -106,14 +182,7 @@ const Chat: React.FC = () => {
       {/* 顶部：模型选择 + Key + 新对话 */}
       <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-neutral-200/70 dark:border-neutral-800/70">
         <Icon name="activity" size={16} />
-        <select
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          className="rounded-pill bg-neutral-100 dark:bg-neutral-900 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-neutral-400/40"
-        >
-          {models.length === 0 && <option value="">（未加载模型）</option>}
-          {models.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
+        <ModelPicker items={models} value={model} onChange={setModel} />
         <input
           value={key}
           onChange={(e) => setKey(e.target.value)}

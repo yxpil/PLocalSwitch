@@ -7,6 +7,7 @@ import { SafeRender } from '@plugins/index';
 
 const TAB_DEFS = [
   { key: 'general', labelKey: 'settings.tab_general' },
+  { key: 'gateway', labelKey: 'settings.tab_gateway' },
   { key: 'network', labelKey: 'settings.tab_network' },
   { key: 'modules', labelKey: 'settings.tab_modules' },
   { key: 'about',   labelKey: 'settings.tab_about' },

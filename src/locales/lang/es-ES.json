@@ -67,6 +67,7 @@
     "description": "Administrar por secciones, cada una puede desactivarse de forma independiente",
     "empty": "No hay ajustes en esta sección",
     "tab_general": "General",
+    "tab_gateway": "Pasarela",
     "tab_look": "Apariencia",
     "tab_network": "Red",
     "tab_modules": "Módulos",

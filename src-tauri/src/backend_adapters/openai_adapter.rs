@@ -13,17 +13,35 @@ use crate::router::CandidateNode;
 
 pub struct OpenAIAdapter;
 
+/// 智能拼接 chat 路径：
+///   - 已以 `/chat/completions` 结尾 → 原样使用
+///   - endpoint 带路径（如智谱 `https://open.bigmodel.cn/api/paas/v4`）→ 追加 `/chat/completions`
+///   - 纯域名 → `/v1/chat/completions`（OpenAI/NVIDIA/DeepSeek/packyapi 等主流兼容上游）
+pub(crate) fn build_chat_url(endpoint: &str) -> String {
+    let e = endpoint.trim().trim_end_matches('/');
+    if e.ends_with("/chat/completions") {
+        return e.to_string();
+    }
+    let has_path = e
+        .split_once("://")
+        .map(|(_, rest)| rest.contains('/'))
+        .unwrap_or(false);
+    if has_path {
+        format!("{e}/chat/completions")
+    } else {
+        format!("{e}/v1/chat/completions")
+    }
+}
+
 #[async_trait]
 impl crate::backend_adapters::BackendAdapter for OpenAIAdapter {
     fn protocol(&self) -> crate::router::ProtocolKind {
         crate::router::ProtocolKind::OpenAI
     }
 
-    /// 构建指向 `{endpoint}/chat/completions` 的上游请求（Bearer 鉴权 + JSON body）
+    /// 构建指向上游 chat 端点的请求（Bearer 鉴权 + JSON body）
     async fn translate_request(&self, oai: &ChatCompletionRequest, node: &CandidateNode) -> AppResult<reqwest::RequestBuilder> {
-        // 与模型检测 {endpoint}/v1/models 保持一致：多数 OpenAI 兼容上游（OpenAI/packyapi/DeepSeek）
-        // 的 chat 路径都在 /v1 前缀下，统一拼 /v1/chat/completions。
-        let url = format!("{}/v1/chat/completions", node.endpoint.trim_end_matches('/'));
+        let url = build_chat_url(&node.endpoint);
         let client = crate::backend_adapters::http_client();
         Ok(client.post(&url)
             .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", node._api_key))

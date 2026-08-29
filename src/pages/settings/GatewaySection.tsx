@@ -13,6 +13,7 @@ import PillCard from '@components/ui/PillCard';
 import PillButton from '@components/ui/PillButton';
 import PillBadge from '@components/ui/PillBadge';
 import Icon from '@icons/index';
+import PillSwitch from '@components/ui/PillSwitch';
 import { invoke } from '@commands/index';
 import { accessHost } from '../../utils/net';
 
@@ -47,10 +48,12 @@ const GatewaySection: React.FC = () => {
   const [groups, setGroups] = useState<GroupView[]>([]);
   const [aliases, setAliases] = useState<any[]>([]);
   const [aliasCount, setAliasCount] = useState(0);
+  const [automode, setAutomode] = useState(true);
 
   const load = async () => {
     try {
       const cfg: any = await invoke('load_config');
+      setAutomode(cfg?.automode?.enabled !== false);
       setListen(accessHost(cfg?.http?.listen));
       setAliasCount((cfg?.model_aliases ?? []).length);
       setAliases((cfg?.model_aliases ?? []).map((a: any) => ({
@@ -103,6 +106,16 @@ const GatewaySection: React.FC = () => {
         ...(cfg.billing.client_keys[idx] ?? {}),
         enabled: k.enabled,
       }));
+      await invoke('save_config', { cfg });
+    } catch { /* 静默 */ }
+  };
+
+  /* AUTOMODE 开关：开启后 model="AUTOMODE" 自动在全部可用模型间尝试降级 */
+  const toggleAutomode = async (v: boolean) => {
+    setAutomode(v);
+    try {
+      const cfg: any = await invoke('load_config');
+      cfg.automode = { ...(cfg.automode ?? {}), enabled: v };
       await invoke('save_config', { cfg });
     } catch { /* 静默 */ }
   };
@@ -199,6 +212,25 @@ const GatewaySection: React.FC = () => {
 
   return (
     <div className="space-y-5">
+      {/* AUTOMODE：自动尝试可用模型 */}
+      <PillCard padding="md" hoverable={false}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="font-semibold flex items-center gap-2">
+              <Icon name="zap" size={15} />
+              自动尝试可用模型（AUTOMODE）
+              <PillBadge size="sm">AUTOMODE</PillBadge>
+            </div>
+            <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
+              开启后，下游请求 model=&quot;AUTOMODE&quot; 时网关自动在模型目录的全部「源 × 模型」间尝试并降级：某个源限流/挂起就自动换下一个。源越多越稳，加一堆免费限流 API 即可放心用。
+            </p>
+          </div>
+          <div className="shrink-0">
+            <PillSwitch size="sm" checked={automode} onChange={toggleAutomode} label="" />
+          </div>
+        </div>
+      </PillCard>
+
       {/* 概览卡 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <PillCard padding="md">

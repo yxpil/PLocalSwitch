@@ -97,7 +97,7 @@ const Switch: React.FC = () => {
       if (cfg && Array.isArray(cfg.node_groups)) setGroups(cfg.node_groups);
       if (cfg && Array.isArray(cfg.billing?.client_keys)) setKeys(cfg.billing.client_keys);
       if (cfg && Array.isArray(cfg.model_aliases)) setAliases(cfg.model_aliases.map((a: any) => ({
-        alias: a.alias ?? '', real_model: a.real_model ?? '', group: a.group ?? 'default', enabled: a.enabled !== false,
+        alias: a.alias ?? '', real_model: a.real_model ?? '', group: a.group ?? 'manual', enabled: a.enabled !== false,
       })));
       if (cfg && cfg.http && cfg.http.listen) setGatewayAddr(accessHost(cfg.http.listen));
       const k = cfg?.billing?.client_keys?.[0];
@@ -264,7 +264,7 @@ const Switch: React.FC = () => {
       const prev: any[] = cfg.model_aliases ?? [];
       cfg.model_aliases = next.map((a) => {
         const old = prev.find(p => p.alias === a.alias);
-        return { ...(old ?? {}), alias: a.alias.trim(), real_model: a.real_model.trim(), group: a.group.trim() || 'default', enabled: a.enabled };
+        return { ...(old ?? {}), alias: a.alias.trim(), real_model: a.real_model.trim(), group: a.group.trim() || 'manual', enabled: a.enabled };
       }).filter((a: any) => a.alias);
       await persist(cfg);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
@@ -273,7 +273,7 @@ const Switch: React.FC = () => {
     const next = aliases.map((a, idx) => idx === i ? { ...a, ...patch } : a);
     if (persistNow) persistAliases(next); else setAliases(next);
   };
-  const addAlias = () => persistAliases([...aliases, { alias: '', real_model: '', group: 'default', enabled: true }]);
+  const addAlias = () => persistAliases([...aliases, { alias: '', real_model: '', group: 'manual', enabled: true }]);
   const removeAlias = (i: number) => persistAliases(aliases.filter((_, idx) => idx !== i));
   const toggleAlias = (i: number) => persistAliases(aliases.map((x, idx) => idx === i ? { ...x, enabled: !x.enabled } : x));
 
@@ -391,9 +391,8 @@ const Switch: React.FC = () => {
         <div className="overflow-hidden rounded-b-softer">
           <div className="grid grid-cols-12 px-5 py-2.5 text-[11px] font-medium text-neutral-500
                           bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200/70 dark:border-neutral-800/70">
-            <div className="col-span-3">{t('switch.col_alias')}</div>
-            <div className="col-span-3">{t('switch.col_real_model')}</div>
-            <div className="col-span-2">{t('switch.col_group')}</div>
+            <div className="col-span-4">{t('switch.col_alias')}</div>
+            <div className="col-span-4">{t('switch.col_real_model')}</div>
             <div className="col-span-1 text-right">{t('switch.col_enabled')}</div>
             <div className="col-span-3 text-right">{t('switch.col_ops')}</div>
           </div>
@@ -402,21 +401,15 @@ const Switch: React.FC = () => {
           ) : aliases.map((a, i) => (
             <div key={i} className={`grid grid-cols-12 px-5 py-3 text-xs items-center gap-2 border-b last:border-b-0
                        border-neutral-200/50 dark:border-neutral-800/50 ${!a.enabled ? 'opacity-55 saturate-50' : ''}`}>
-              <div className="col-span-3 min-w-0">
+              <div className="col-span-4 min-w-0">
                 <input value={a.alias} placeholder={t('switch.alias_placeholder')}
                   onChange={e => updateAlias(i, { alias: e.target.value })}
                   onBlur={() => persistAliases(aliases)}
                   className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
               </div>
-              <div className="col-span-3 min-w-0">
+              <div className="col-span-4 min-w-0">
                 <input value={a.real_model} placeholder={t('switch.real_model_placeholder')}
                   onChange={e => updateAlias(i, { real_model: e.target.value })}
-                  onBlur={() => persistAliases(aliases)}
-                  className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
-              </div>
-              <div className="col-span-2 min-w-0">
-                <input value={a.group} placeholder="default"
-                  onChange={e => updateAlias(i, { group: e.target.value })}
                   onBlur={() => persistAliases(aliases)}
                   className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
               </div>

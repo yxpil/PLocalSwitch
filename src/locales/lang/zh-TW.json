@@ -67,6 +67,7 @@
     "description": "按分區管理，每個分區可獨立停用",
     "empty": "此分區暫無設定項",
     "tab_general": "一般",
+    "tab_gateway": "網關",
     "tab_look": "外觀",
     "tab_network": "網路",
     "tab_modules": "模組",

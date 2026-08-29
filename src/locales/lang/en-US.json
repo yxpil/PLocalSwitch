@@ -67,6 +67,7 @@
     "description": "Manage by sections, each can be disabled independently",
     "empty": "No settings in this section",
     "tab_general": "General",
+    "tab_gateway": "Gateway",
     "tab_look": "Appearance",
     "tab_network": "Network",
     "tab_modules": "Modules",

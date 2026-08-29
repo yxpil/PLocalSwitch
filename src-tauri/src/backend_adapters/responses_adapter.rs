@@ -72,7 +72,15 @@ impl crate::backend_adapters::BackendAdapter for ResponsesAdapter {
     fn protocol(&self) -> crate::router::ProtocolKind { crate::router::ProtocolKind::OpenAIResponse }
 
     async fn translate_request(&self, oai: &ChatCompletionRequest, node: &CandidateNode) -> AppResult<reqwest::RequestBuilder> {
-        let url = format!("{}/v1/responses", node.endpoint.trim_end_matches('/'));
+        // 与 openai_adapter 同规则：带路径 endpoint 追加 /responses，纯域名补 /v1/responses
+        let base = node.endpoint.trim().trim_end_matches('/');
+        let url = if base.ends_with("/responses") {
+            base.to_string()
+        } else if base.split_once("://").map(|(_, rest)| rest.contains('/')).unwrap_or(false) {
+            format!("{base}/responses")
+        } else {
+            format!("{base}/v1/responses")
+        };
         let client = crate::backend_adapters::http_client();
 
         let mut instructions = String::new();

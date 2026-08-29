@@ -147,20 +147,45 @@ pub async fn chat_completions_handler(
     }
 }
 
-/// GET /v1/models —— 返回 alias + 后端真实模型合并列表
+/// GET /v1/models —— 返回 alias + 模型目录真实模型合并列表（去重，下游设备可见全部可路由模型）
 pub async fn list_models_handler(
     State(app): State<Arc<AppState>>,
     _client: AuthedClient,
 ) -> Result<Json<ModelList>, AppErrorResponse> {
     let cfg = app.cfg_swap.load();
-    let mut data = Vec::with_capacity(cfg.model_aliases.len());
+    let mut seen = std::collections::HashSet::new();
+    let mut data = Vec::new();
+    // 1) 别名（客户端配置的对外模型名）
     for a in cfg.model_aliases.iter().filter(|a| a.enabled) {
+        if seen.insert(a.alias.clone()) {
+            data.push(ModelItem {
+                id: a.alias.clone(),
+                object: "model",
+                created: 1700000000i64,
+                owned_by: "plocal-switch".into(),
+            });
+        }
+    }
+    // 0) AUTOMODE 虚拟模型（设置开启时）：全目录自动尝试降级
+    if app.cfg_swap.load().automode.enabled {
         data.push(ModelItem {
-            id: a.alias.clone(),
+            id: "AUTOMODE".into(),
             object: "model",
             created: 1700000000i64,
             owned_by: "plocal-switch".into(),
         });
+    }
+    // 2) 模型目录（组合键 host|model）：对外展示纯模型名（多源同名去重，下游设备兼容）
+    for entry in app.node_runtime.model_catalog.iter() {
+        let name = entry.key().rsplit('|').next().unwrap_or(entry.key()).to_string();
+        if seen.insert(name.clone()) {
+            data.push(ModelItem {
+                id: name,
+                object: "model",
+                created: 1700000000i64,
+                owned_by: "upstream".into(),
+            });
+        }
     }
     Ok(Json(ModelList { object: "list", data }))
 }

@@ -47,3 +47,5 @@ installer-src/
 
 # Tauri
 src-tauri/WixTools/
+
+release-*/

@@ -67,6 +67,7 @@
     "description": "セクションごとに管理、各セクションは個別に無効化可能",
     "empty": "このセクションに設定項目はありません",
     "tab_general": "一般",
+    "tab_gateway": "ゲートウェイ",
     "tab_look": "外観",
     "tab_network": "ネットワーク",
     "tab_modules": "モジュール",

@@ -21,8 +21,19 @@ pub struct AppConfig {
     pub cache_pool: CachePoolConfig,
     pub billing: BillingConfig,
     pub node_quality: NodeQualityConfig,
+    #[serde(default)] pub automode: AutomodeConfig,
     pub policy: PolicyConfig,
     pub masking: MaskingConfig,
+}
+
+/// AUTOMODE 虚拟模型：开启后客户端请求 model="AUTOMODE" 时，
+/// 网关自动在模型目录全部「源×模型」间尝试并降级（源越多越稳）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutomodeConfig {
+    #[serde(default = "default_true")] pub enabled: bool,
+}
+impl Default for AutomodeConfig {
+    fn default() -> Self { Self { enabled: true } }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

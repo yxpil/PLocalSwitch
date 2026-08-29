@@ -67,6 +67,7 @@
     "description": "섹션별로 관리, 각 섹션은 독립적으로 비활성화 가능",
     "empty": "이 섹션에 설정 항목이 없습니다",
     "tab_general": "일반",
+    "tab_gateway": "게이트웨이",
     "tab_look": "외관",
     "tab_network": "네트워크",
     "tab_modules": "모듈",

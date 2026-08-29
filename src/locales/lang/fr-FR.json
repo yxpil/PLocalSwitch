@@ -67,6 +67,7 @@
     "description": "Gérer par sections, chacune pouvant être désactivée indépendamment",
     "empty": "Aucun paramètre dans cette section",
     "tab_general": "Général",
+    "tab_gateway": "Passerelle",
     "tab_look": "Apparence",
     "tab_network": "Réseau",
     "tab_modules": "Modules",

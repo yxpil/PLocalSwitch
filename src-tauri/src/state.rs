@@ -122,8 +122,8 @@ pub struct NodeRuntime {
     pub capabilities: DashMap<String, (crate::flex_adapter::capability_cache::Capabilities, u128)>,
     pub proto_sniff:  SniffCache,
     pub temp_ban_until: DashMap<String, u64>,
-    /// 模型目录：上游真实模型名 → 服务它的节点组 id（供“模型↔API”匹配路由）
-    pub model_catalog: DashMap<String, String>,
+    /// 模型目录：上游真实模型名 → 服务它的节点组列表（多节点同模型自动轮询）
+    pub model_catalog: DashMap<String, Vec<String>>,
 }
 
 pub enum DbPool {

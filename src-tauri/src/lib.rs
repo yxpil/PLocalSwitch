@@ -117,7 +117,7 @@ pub fn run_app() -> AppResult<()> {
         // 预填“模型→上游组”目录（别名真实模型），供真实模型名路由；list_upstream_models 会再补充上游真实模型
         for a in app_state.cfg.model_aliases.iter() {
             if a.enabled {
-                app_state.node_runtime.model_catalog.insert(a.real_model.clone(), a.group.clone());
+                app_state.node_runtime.model_catalog.insert(a.real_model.clone(), vec![a.group.clone()]);
             }
         }
 
@@ -129,6 +129,16 @@ pub fn run_app() -> AppResult<()> {
 
         // ----- 4. 启动 axum 网关服务（OpenAI v1 + 管理接口 + prometheus）-----
         safety_runtime::spawn_axum_server(app_state.clone(), app_state.gateway_ctrl.clone()).await?;
+
+        // 启动后异步刷新「模型→上游组」目录（拉取各上游 /v1/models），
+        // 保证真实模型名（如 aisingapore/sea-lion-7b-instruct）开箱即可路由，无需先打开聊天页
+        {
+            let st = app_state.clone();
+            tokio::spawn(async move {
+                let n = crate::router::refresh_model_catalog(&st).await.len();
+                tracing::info!("model catalog refreshed at startup ({n} entries)");
+            });
+        }
 
         // ----- 5. Tauri 桌面壳启动（纯服务器模式下被 feature=desktop-shell 条件跳过）-----
         #[cfg(feature = "desktop-shell")]
@@ -257,6 +267,7 @@ pub fn run_app() -> AppResult<()> {
                     commands::system::list_traces,
                     commands::system::billing_summary,
                     commands::system::gateway_chat,
+                    commands::system::gateway_chat_stream,
                     commands::system::list_upstream_models,
                     commands::system::test_node,
                 ])
