@@ -9,7 +9,8 @@
 ## 1. 设计定位
 
 - **形态**：本地/自部署的 **LLM API 代理网关**，附赠一个 Tauri 桌面管理壳（前端管理界面）。
-- **对外契约**：只暴露 OpenAI v1 协议，客户端无需关心背后接的是哪家模型。
+- **入站协议**：支持 OpenAI / Anthropic / Gemini 三种客户端协议直接接入（协议无感中转）。
+- **出站契约**：内部统一为 OpenAI 模型，对外输出标准 OpenAI v1 格式，客户端无需关心背后接的是哪家模型。
 - **核心职责**：把客户端请求**适配**到各类上游（OpenAI / Anthropic / Gemini / Ollama / 百度千帆 / 阿里 DashScope / 讯飞星火 / 腾讯混元 / AWS Bedrock / Cohere / vLLM / TGI / 各类 OpenAI 兼容中转）。
 - **边界(不做)**：不做 LLM 推理、不实现 Agent、不持久化会话内容、不替代业务后端。
 
