@@ -32,20 +32,14 @@ interface NodeView {
   protocol: string;
   enabled: boolean;
 }
-interface GroupView {
-  id: string;
-  enabled: boolean;
-  nodeCount: number;
-  protocols: string[];
-  nodes: NodeView[];
-}
 
 const GatewaySection: React.FC = () => {
   const { t } = useTranslation();
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [listen, setListen] = useState('');
   const [keys, setKeys] = useState<any[]>([]);
-  const [groups, setGroups] = useState<GroupView[]>([]);
+  const [nodes, setNodes] = useState<NodeView[]>([]);
+  const [groupIds, setGroupIds] = useState<string[]>([]);
   const [aliases, setAliases] = useState<any[]>([]);
   const [aliasCount, setAliasCount] = useState(0);
   const [automode, setAutomode] = useState(true);
@@ -80,28 +74,31 @@ const GatewaySection: React.FC = () => {
         tpm: k.tpm ?? 0,
         enabled: k.enabled !== false,
       })));
-      // 分组机制已废弃（v0.2.6 扁平模型路由）：过滤掉 0 节点的空组
-      // （出厂默认配置模板带的 group-openai-global / group-ollama-* 等示例空组不再显示）
-      setGroups((cfg?.node_groups ?? []).filter((g: any) => (g.nodes ?? []).length > 0).map((g: any) => ({
-        id: g.id,
-        enabled: g.enabled !== false,
-        nodeCount: (g.nodes ?? []).length,
-        protocols: Array.from(new Set<string>((g.nodes ?? []).flatMap((n: any) => [n.protocol, ...(n.protocol_hints ?? [])]))),
-        nodes: (g.nodes ?? []).map((n: any) => ({
-          id: n.id ?? '',
-          endpoint: n.endpoint ?? '',
-          api_key: (n.api_keys ?? [])[0] ?? '',
-          protocol: (n.protocol_hints ?? [])[0] ?? '',
-          enabled: n.enabled !== false,
-        })),
-      })));
+      // 分组机制已废弃（v0.2.6 扁平模型路由）：节点扁平化展示，忽略组壳
+      // （出厂默认配置模板的空组天然不出现；组名仅保留在配置里，不参与路由）
+      const allNodes: NodeView[] = [];
+      const gids: string[] = [];
+      for (const g of (cfg?.node_groups ?? [])) {
+        if ((g.nodes ?? []).length > 0) gids.push(g.id);
+        for (const n of (g.nodes ?? [])) {
+          allNodes.push({
+            id: n.id ?? '',
+            endpoint: n.endpoint ?? '',
+            api_key: (n.api_keys ?? [])[0] ?? '',
+            protocol: (n.protocol_hints ?? [])[0] ?? '',
+            enabled: n.enabled !== false,
+          });
+        }
+      }
+      setNodes(allNodes);
+      setGroupIds(gids);
     } catch { /* 无后端时忽略 */ }
   };
 
   useEffect(() => { load(); }, []);
 
   // 分组下拉选项：真实上游组 + 「自动匹配」（让路由自动落到有节点的组）
-  const groupOptions = ['auto', ...groups.map((g) => g.id)];
+  const groupOptions = ['auto', ...groupIds];
 
   const onCopy = async (text: string, label = '已复制') => {
     try { await navigator.clipboard.writeText(text); } catch { /* noop */ }
@@ -199,30 +196,29 @@ const GatewaySection: React.FC = () => {
   const addAlias = () => persistAliases([...aliases, { alias: '', real_model: '', group: 'default', enabled: true }]);
   const removeAlias = (i: number) => persistAliases(aliases.filter((_, idx) => idx !== i));
 
-  /* 节点编辑：改写 node_groups 中某个节点的 endpoint / api_keys / protocol_hints / enabled */
-  const persistGroups = async (next: GroupView[]) => {
-    setGroups(next);
+  /* 节点编辑：扁平视图按 node.id 写回 node_groups（保留各节点其它字段），组壳不动 */
+  const persistNodes = async (next: NodeView[]) => {
+    setNodes(next);
     try {
       const cfg: any = await invoke('load_config');
-      const prevGroups: any[] = cfg.node_groups ?? [];
-      cfg.node_groups = next.map((g) => {
-        const old = prevGroups.find(p => p.id === g.id) ?? {};
-        const oldNodes: any[] = old.nodes ?? [];
-        const nodes = g.nodes.map((n) => {
-          const on = oldNodes.find((x: any) => x.id === n.id) ?? {};
-          return { ...on, id: n.id, endpoint: n.endpoint.trim(), api_keys: [n.api_key], protocol_hints: [n.protocol], enabled: n.enabled };
-        });
-        return { ...old, id: g.id, enabled: g.enabled, nodes };
-      });
+      const byId = new Map(next.map(n => [n.id, n]));
+      cfg.node_groups = (cfg.node_groups ?? []).map((g: any) => ({
+        ...g,
+        nodes: (g.nodes ?? []).map((n: any) => {
+          const v = byId.get(n.id ?? '');
+          if (!v) return n;
+          return { ...n, endpoint: v.endpoint.trim(), api_keys: [v.api_key], protocol_hints: [v.protocol], enabled: v.enabled };
+        }),
+      }));
       await invoke('save_config', { cfg });
     } catch { /* 静默 */ }
   };
-  const updateGroupNode = (gi: number, ni: number, patch: any, persist = false) => {
-    const next = groups.map((g, idx) => idx === gi ? { ...g, nodes: g.nodes.map((n, j) => j === ni ? { ...n, ...patch } : n) } : g);
-    if (persist) persistGroups(next); else setGroups(next);
+  const updateNode = (id: string, patch: any, persist = false) => {
+    const next = nodes.map(n => n.id === id ? { ...n, ...patch } : n);
+    if (persist) persistNodes(next); else setNodes(next);
   };
-  const toggleGroupNode = (gi: number, ni: number) =>
-    persistGroups(groups.map((g, idx) => idx === gi ? { ...g, nodes: g.nodes.map((n, j) => j === ni ? { ...n, enabled: !n.enabled } : n) } : g));
+  const toggleNode = (id: string) =>
+    persistNodes(nodes.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n));
 
   return (
     <div className="space-y-5">
@@ -321,8 +317,8 @@ const GatewaySection: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[11px] text-neutral-500 uppercase tracking-wide">{t('gateway.upstream_nodes')}</div>
-              <div className="text-2xl font-bold mt-2 tabular-nums">{groups.reduce((s, g) => s + g.nodeCount, 0)}</div>
-              <div className="mt-2 text-[11px] text-neutral-500">{t('gateway.upstream_groups', { count: groups.length })}</div>
+              <div className="text-2xl font-bold mt-2 tabular-nums">{nodes.length}</div>
+              <div className="mt-2 text-[11px] text-neutral-500">多节点同模型自动轮询</div>
             </div>
             <div className="h-10 w-10 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center shrink-0">
               <Icon name="server" size={18} />
@@ -405,7 +401,7 @@ const GatewaySection: React.FC = () => {
                   onChange={e => updateAlias(i, { group: e.target.value }, true)}
                   className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40">
                   <option value="auto">自动匹配</option>
-                  {groups.map((g) => <option key={g.id} value={g.id}>{g.id}</option>)}
+                  {groupIds.map((gid) => <option key={gid} value={gid}>{gid}</option>)}
                 </select>
               </div>
               <div className="col-span-1 flex justify-end">
@@ -477,7 +473,7 @@ const GatewaySection: React.FC = () => {
         )}
       </PillCard>
 
-      {/* 上游节点组概览 */}
+      {/* 上游节点（扁平列表：分组已废弃，组名不参与路由，仅编辑节点本身） */}
       <PillCard padding="none">
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200/70 dark:border-neutral-800/70">
           <div className="flex items-center gap-2">
@@ -485,62 +481,50 @@ const GatewaySection: React.FC = () => {
               <Icon name="network" size={16} />
             </div>
             <div>
-              <div className="font-semibold">{t('gateway.groups_title')}</div>
-              <div className="text-[11px] text-neutral-500">{t('gateway.groups_hint')}</div>
+              <div className="font-semibold">上游节点</div>
+              <div className="text-[11px] text-neutral-500">所有上游节点扁平管理，按模型目录自动路由，多节点同模型自动轮询</div>
             </div>
           </div>
+          <PillBadge variant="neutral" size="sm">{t('switch.total_count', { count: nodes.length })}</PillBadge>
         </div>
-        {groups.length === 0 ? (
-          <div className="px-5 py-4 text-sm text-neutral-500">{t('gateway.no_groups')}</div>
+        {nodes.length === 0 ? (
+          <div className="px-5 py-4 text-sm text-neutral-500">暂无节点，到「上游」页添加</div>
         ) : (
           <div className="overflow-hidden rounded-b-softer">
-            <div className="grid grid-cols-12 px-5 py-2.5 text-[11px] font-medium text-neutral-500
+            <div className="grid grid-cols-12 gap-2 px-5 py-2.5 text-[11px] font-medium text-neutral-500
                             bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200/70 dark:border-neutral-800/70">
-              <div className="col-span-5">{t('gateway.col_group')}</div>
-              <div className="col-span-4 md:col-span-5">{t('gateway.col_protocol')}</div>
-              <div className="col-span-3 text-right">{t('gateway.col_nodes')}</div>
+              <div className="col-span-5">Endpoint</div>
+              <div className="col-span-3">API Key</div>
+              <div className="col-span-3">协议</div>
+              <div className="col-span-1 text-right">启停</div>
             </div>
-            {groups.map((g, i) => (
-              <div key={g.id} className="border-b last:border-b-0 border-neutral-200/50 dark:border-neutral-800/50">
-                {/* 组汇总行（组级启停已随分组机制移除，节点级启停见下方节点行） */}
-                <div className="grid grid-cols-12 px-5 py-3 text-xs items-center">
-                  <div className="col-span-5 font-mono truncate min-w-0">{g.id}</div>
-                  <div className="col-span-4 md:col-span-5 flex flex-wrap gap-1 min-w-0">
-                    {g.protocols.length === 0
-                      ? <span className="text-neutral-400">—</span>
-                      : g.protocols.map(p => <PillBadge key={p} variant="neutral" size="sm" className="font-mono">{p}</PillBadge>)}
-                  </div>
-                  <div className="col-span-3 text-right tabular-nums">{g.nodeCount}</div>
+            {nodes.map((n) => (
+              <div key={n.id} className={`grid grid-cols-12 gap-2 px-5 py-3 text-xs items-center border-b last:border-b-0
+                         border-neutral-200/50 dark:border-neutral-800/50 ${!n.enabled ? 'opacity-55 saturate-50' : ''}`}>
+                <div className="col-span-12 md:col-span-5">
+                  <input value={n.endpoint} placeholder="https://..."
+                    onChange={e => updateNode(n.id, { endpoint: e.target.value })}
+                    onBlur={() => persistNodes(nodes)}
+                    className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
                 </div>
-                {/* 节点编辑行：endpoint / api key / protocol / 启停 */}
-                {g.nodes.map((n, j) => (
-                  <div key={j} className="grid grid-cols-12 gap-2 px-5 pb-3 text-xs items-center">
-                    <div className="col-span-12 md:col-span-5">
-                      <input value={n.endpoint} placeholder="https://..."
-                        onChange={e => updateGroupNode(i, j, { endpoint: e.target.value })}
-                        onBlur={() => persistGroups(groups)}
-                        className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
-                    </div>
-                    <div className="col-span-6 md:col-span-4">
-                      <input value={n.api_key} type="password" placeholder="API Key"
-                        onChange={e => updateGroupNode(i, j, { api_key: e.target.value })}
-                        onBlur={() => persistGroups(groups)}
-                        className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
-                    </div>
-                    <div className="col-span-4 md:col-span-2">
-                      <input value={n.protocol} placeholder="protocol"
-                        onChange={e => updateGroupNode(i, j, { protocol: e.target.value })}
-                        onBlur={() => persistGroups(groups)}
-                        className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
-                    </div>
-                    <div className="col-span-2 md:col-span-1 flex justify-end">
-                      <button aria-label={t('gateway.toggle_enabled')} onClick={() => toggleGroupNode(i, j)}
-                        className={`h-6 w-6 rounded-pill flex items-center justify-center ${n.enabled ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 dark:bg-neutral-900'}`}>
-                        <Icon name={n.enabled ? 'pause' : 'play'} size={12} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                <div className="col-span-6 md:col-span-3">
+                  <input value={n.api_key} type="password" placeholder="API Key"
+                    onChange={e => updateNode(n.id, { api_key: e.target.value })}
+                    onBlur={() => persistNodes(nodes)}
+                    className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <input value={n.protocol} placeholder="protocol"
+                    onChange={e => updateNode(n.id, { protocol: e.target.value })}
+                    onBlur={() => persistNodes(nodes)}
+                    className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+                </div>
+                <div className="col-span-2 md:col-span-1 flex justify-end">
+                  <button aria-label={t('gateway.toggle_enabled')} onClick={() => toggleNode(n.id)}
+                    className={`h-6 w-6 rounded-pill flex items-center justify-center ${n.enabled ? 'bg-neutral-900 text-white dark:bg-white dark:text-black' : 'bg-neutral-100 dark:bg-neutral-900'}`}>
+                    <Icon name={n.enabled ? 'pause' : 'play'} size={12} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
