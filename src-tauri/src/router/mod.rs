@@ -105,6 +105,22 @@ pub async fn route_client_request(
         },
     };
     let mut cands  = expand_candidates(state, &resolved, is_stream).await?;
+    // 兜底：别名指向的组没有可用节点时，回退到任一「启用且有节点」的组，
+    // 避免用户只配了一个节点、而别名指向空组时直接 400（宁滥不缺：尽量让请求能发出去）
+    if cands.is_empty() {
+        let cfg = state.cfg_swap.load();
+        for g in cfg.node_groups.iter().filter(|g| g.enabled && g.nodes.iter().any(|n| n.enabled && !n.hard_disable)) {
+            let fb = model_alias::ResolvedAlias {
+                real_model: resolved.real_model.clone(),
+                group: g.id.clone(),
+                cache_enable: false,
+                ttl_seconds: None,
+                charge_on_cache_hit: false,
+            };
+            let v = expand_candidates(state, &fb, is_stream).await?;
+            if !v.is_empty() { cands = v; break; }
+        }
+    }
     sort_and_trim(state, &mut cands);
     Ok(cands)
 }
