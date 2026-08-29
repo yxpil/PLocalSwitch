@@ -106,6 +106,65 @@ pub async fn gateway_chat(
     }
 }
 
+/// 测试单个上游节点连通性/鉴权（保存前用）。返回 {ok, status, message, bodies}
+#[tauri::command]
+pub async fn test_node(endpoint: String, api_key: String, protocol: String) -> CommandResult<ApiResponse<serde_json::Value>> {
+    let endpoint = endpoint.trim().trim_end_matches('/').to_string();
+    if endpoint.is_empty() {
+        return Ok(ApiResponse::fail("endpoint 为空"));
+    }
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+    let proto = protocol.parse::<crate::router::ProtocolKind>().unwrap_or(crate::router::ProtocolKind::OpenAI);
+
+    let send = match proto {
+        crate::router::ProtocolKind::Ollama => client.get(format!("{endpoint}/api/tags")).send().await,
+        crate::router::ProtocolKind::Anthropic => {
+            client.post(format!("{endpoint}/v1/messages"))
+                .header("x-api-key", &api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("Content-Type", "application/json")
+                .json(&serde_json::json!({"model": "probe", "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]}))
+                .send().await
+        }
+        crate::router::ProtocolKind::Gemini => {
+            let mut r = client.get(format!("{endpoint}/v1beta/models"));
+            if !api_key.is_empty() { r = r.header("x-goog-api-key", &api_key); }
+            r.send().await
+        }
+        _ => {
+            let mut r = client.get(format!("{endpoint}/v1/models"));
+            if !api_key.is_empty() { r = r.header("Authorization", format!("Bearer {api_key}")); }
+            r.send().await
+        }
+    };
+
+    match send {
+        Ok(r) => {
+            let status = r.status().as_u16();
+            let body = r.text().await.unwrap_or_default();
+            // 200/400/404 都说明端点可达且鉴权格式被接受；401/403=key 无效；5xx=服务端问题
+            let ok = status < 500 && status != 401 && status != 403;
+            let reason = match status {
+                200 => "✓ 连通正常（鉴权通过）",
+                401 => "鉴权失败：API key 无效或未授权",
+                403 => "鉴权失败：无权限（403）",
+                400 | 404 => "端点可达、鉴权已接受（400/404 可能模型名/路径问题，可继续测试）",
+                500..=599 => "上游服务端错误",
+                _ => "端点上未预期的响应",
+            };
+            Ok(ApiResponse::ok(serde_json::json!({
+                "ok": ok, "status": status, "message": format!("HTTP {status} {reason}"),
+                "bodies": body.chars().take(300).collect::<String>(),
+            })))
+        }
+        Err(e) => Ok(ApiResponse::fail(format!("连接失败：{e}"))),
+    }
+}
+
 /// 从单个上游节点拉取真实模型列表：Ollama /api/tags、其余 OpenAI 兼容 /v1/models
 async fn fetch_node_models(client: &reqwest::Client, endpoint: &str, key: &str, proto: &str) -> Vec<String> {
     let url = if proto == "ollama" { format!("{endpoint}/api/tags") } else { format!("{endpoint}/v1/models") };

@@ -80,6 +80,9 @@ const Switch: React.FC = () => {
   const [fEndpoint, setFEndpoint] = useState('');
   const [fKey, setFKey] = useState('');
   const [fProtocol, setFProtocol] = useState('openai_chat');
+  // 上游节点连通性测试（保存前）
+  const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+  const [testMsg, setTestMsg] = useState('');
 
   // 下游 Key 管理
   const [showKeyForm, setShowKeyForm] = useState(false);
@@ -115,6 +118,7 @@ const Switch: React.FC = () => {
   const openAddForm = () => {
     setEditingNode(null);
     setFEndpoint(''); setFKey(''); setFProtocol('openai_chat');
+    setTestState('idle'); setTestMsg('');
     setShowForm(true);
   };
   const openEditForm = (n: UpstreamNode) => {
@@ -122,7 +126,21 @@ const Switch: React.FC = () => {
     setFEndpoint(n.endpoint || '');
     setFKey(n.api_keys?.[0] || '');
     setFProtocol(n.protocol_hints?.[0] || 'openai_chat');
+    setTestState('idle'); setTestMsg('');
     setShowForm(true);
+  };
+
+  // 保存前测试上游连通性/鉴权
+  const runTest = async () => {
+    if (!fEndpoint.trim()) { setTestState('fail'); setTestMsg('请先填写上游 URL'); return; }
+    setTestState('testing'); setTestMsg('测试中…');
+    try {
+      const r: any = await invoke('test_node', { endpoint: fEndpoint, api_key: fKey, protocol: fProtocol });
+      if (r && r.ok) { setTestState('ok'); setTestMsg(r.message || '✓ 测试通过'); }
+      else { setTestState('fail'); setTestMsg(r?.message || '测试未通过'); }
+    } catch (e: any) {
+      setTestState('fail'); setTestMsg(e?.message || String(e));
+    }
   };
 
   const saveNode = async () => {
@@ -493,7 +511,7 @@ const Switch: React.FC = () => {
         title={editingNode ? t('switch.edit_upstream') : t('switch.add_upstream_gateway')}
         footer={({ close }) => (
           <>
-            <PillButton variant="soft" leftIcon={<Icon name="check" size={14} />} onClick={saveNode}>
+            <PillButton variant="soft" leftIcon={<Icon name="check" size={14} />} onClick={saveNode} disabled={testState !== 'ok'}>
               {editingNode ? t('common.save_changes') : t('switch.save_upstream')}
             </PillButton>
             <PillButton variant="ghost" onClick={close}>{t('common.cancel')}</PillButton>
@@ -502,16 +520,30 @@ const Switch: React.FC = () => {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <PillInput label={t('switch.upstream_url')} placeholder="https://api.openai.com/v1" value={fEndpoint}
-            onChange={(e) => setFEndpoint(e.target.value)} />
+            onChange={(e) => { setFEndpoint(e.target.value); setTestState('idle'); setTestMsg(''); }} />
           <PillInput label={t('switch.api_key')} placeholder="sk-..." type="password" value={fKey}
-            onChange={(e) => setFKey(e.target.value)} />
+            onChange={(e) => { setFKey(e.target.value); setTestState('idle'); setTestMsg(''); }} />
           <div className="p-field">
             <label className="p-label">{t('switch.upstream_protocol')}</label>
             <select className="pill-input bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
-              value={fProtocol} onChange={(e) => setFProtocol(e.target.value)}>
+              value={fProtocol} onChange={(e) => { setFProtocol(e.target.value); setTestState('idle'); setTestMsg(''); }}>
               {PROTOCOLS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
           </div>
+        </div>
+        {/* 保存前先测试：通过后才能保存 */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <PillButton size="sm" variant="soft" leftIcon={<Icon name="zap" size={14} />} onClick={runTest} disabled={testState === 'testing'}>
+            测试连通性
+          </PillButton>
+          {testMsg && (
+            <span className={`text-xs ${testState === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : testState === 'fail' ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'}`}>
+              {testMsg}
+            </span>
+          )}
+          {testState !== 'ok' && testState !== 'idle' && (
+            <span className="text-xs text-neutral-400">测试通过后才能保存</span>
+          )}
         </div>
       </PillModal>
 

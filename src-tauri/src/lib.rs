@@ -257,6 +257,7 @@ pub fn run_app() -> AppResult<()> {
                     commands::system::billing_summary,
                     commands::system::gateway_chat,
                     commands::system::list_upstream_models,
+                    commands::system::test_node,
                 ])
                 .on_window_event(|window, event| {
                     // 点击关闭按钮 -> 隐藏到托盘，不退出进程
