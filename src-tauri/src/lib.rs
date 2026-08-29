@@ -252,6 +252,7 @@ pub fn run_app() -> AppResult<()> {
                     commands::gateway::gateway_start,
                     commands::gateway::gateway_stop,
                     commands::gateway::restart_graceful,
+                    commands::gateway::gateway_auto_restart,
                     commands::tray::tray_action,
                     commands::system::list_traces,
                     commands::system::billing_summary,

@@ -66,6 +66,14 @@ pub struct AppState {
 pub struct GatewayCtrl {
     pub running:  std::sync::atomic::AtomicBool,
     pub listen:   String,
+    /// 崩溃自动重启开关（守护循环依据；用户主动停止不受影响）
+    pub auto_restart: std::sync::atomic::AtomicBool,
+    /// 累计自动重启次数（观测用）
+    pub restarts: std::sync::atomic::AtomicU64,
+    /// 运行实例代数：每次注册新实例 +1；旧守护任务发现代数不符即静默让位
+    generation:      std::sync::atomic::AtomicU64,
+    /// 用户主动停止标记：request_stop 置位，注册新代时清除
+    stop_requested:  std::sync::atomic::AtomicBool,
     state:        std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
 
@@ -74,17 +82,28 @@ impl GatewayCtrl {
         Self {
             running: std::sync::atomic::AtomicBool::new(false),
             listen,
+            auto_restart: std::sync::atomic::AtomicBool::new(true),
+            restarts: std::sync::atomic::AtomicU64::new(0),
+            generation: std::sync::atomic::AtomicU64::new(0),
+            stop_requested: std::sync::atomic::AtomicBool::new(false),
             state: std::sync::Mutex::new(None),
         }
     }
     pub fn is_running(&self) -> bool { self.running.load(std::sync::atomic::Ordering::Relaxed) }
-    /// 记录本次运行实例的 shutdown 发送端
-    pub fn register(&self, tx: tokio::sync::oneshot::Sender<()>) {
+    pub fn auto_restart_enabled(&self) -> bool { self.auto_restart.load(std::sync::atomic::Ordering::Relaxed) }
+    pub fn set_auto_restart(&self, on: bool) { self.auto_restart.store(on, std::sync::atomic::Ordering::Relaxed); }
+    pub fn restart_count(&self) -> u64 { self.restarts.load(std::sync::atomic::Ordering::Relaxed) }
+    pub fn generation_id(&self) -> u64 { self.generation.load(std::sync::atomic::Ordering::Relaxed) }
+    /// 记录本次运行实例的 shutdown 发送端；返回新代数（旧守护任务凭此让位）
+    pub fn register(&self, tx: tokio::sync::oneshot::Sender<()>) -> u64 {
         *self.state.lock().unwrap() = Some(tx);
+        self.stop_requested.store(false, std::sync::atomic::Ordering::Relaxed);
         self.running.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.generation.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1
     }
     /// 触发优雅停止；返回是否确实在运行
     pub fn request_stop(&self) -> bool {
+        self.stop_requested.store(true, std::sync::atomic::Ordering::Relaxed);
         if let Some(tx) = self.state.lock().unwrap().take() {
             let _ = tx.send(());
             self.running.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -92,6 +111,10 @@ impl GatewayCtrl {
         } else {
             false
         }
+    }
+    /// 读取并清除用户停止标记（守护循环用）
+    pub fn take_stop_requested(&self) -> bool {
+        self.stop_requested.swap(false, std::sync::atomic::Ordering::Relaxed)
     }
 }
 

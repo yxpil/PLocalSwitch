@@ -87,8 +87,12 @@ pub async fn route_client_request(
     use group_selector::expand_candidates;
     use fallback_policy::sort_and_trim;
 
-    // 先按别名/真实模型匹配；都不中则查“模型→上游组”目录（模型↔API 匹配）
-    let resolved = match resolve_alias(&state.cfg, client_model) {
+    // 先按别名/真实模型匹配；都不中则查“模型→上游组”目录（模型↔API 匹配）。
+    // 别名解析读 cfg_swap（跟随热更新）；guard 在当前语句后立即释放。
+    let resolved = match {
+        let cfg = state.cfg_swap.load();
+        resolve_alias(&cfg, client_model)
+    } {
         Ok(r) => r,
         Err(_) => match state.node_runtime.model_catalog.get(client_model) {
             Some(g) => model_alias::ResolvedAlias {

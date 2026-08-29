@@ -78,9 +78,16 @@ pub async fn attempt_chain(
     req:        ChatCompletionRequest,
     is_stream:  bool,
 ) -> AttemptOutcome {
-    let cfg = &state.cfg_swap.load().flex_adapter;
-    let max_subs = cfg.global_max_sub_attempts.max(1);
-    let policy = state.cfg_swap.load().policy.clone();
+    // 运行时配置从 cfg_swap 读取（跟随热更新；masking 同理，避免改动后日志脱敏失效）。
+    // 块内提取后立即释放 ArcSwap guard，避免跨 await 持有导致 future !Send。
+    let (max_subs, policy, mask) = {
+        let cfg_rt = state.cfg_swap.load();
+        (
+            cfg_rt.flex_adapter.global_max_sub_attempts.max(1),
+            cfg_rt.policy.clone(),
+            cfg_rt.masking.clone(),
+        )
+    };
     let mut subs: Vec<SubAttempt> = Vec::new();
     let mut last_err: Option<AppError> = None;
 
@@ -94,7 +101,7 @@ pub async fn attempt_chain(
     // ------- 非流式：真实多轮候选执行（自适应：上游「协议不支持」时自动换下一个候选协议）-------
     'outer: for c in candidates {
         if subs.len() as u32 >= max_subs { break; }
-        let masked = c.to_masked(&state.cfg.masking);
+        let masked = c.to_masked(&mask);
         // 协议候选序列：已记忆协议优先 → hints+兜底去重。用于「协议不支持」时自动换协议。
         let mut protos: Vec<ProtocolKind> = Vec::new();
         if let Some(p) = crate::flex_adapter::protocol_sniffer::try_cached(state, &c.node_id) { protos.push(p); }

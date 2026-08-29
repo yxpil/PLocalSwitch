@@ -1,6 +1,6 @@
 [package]
 name = "plocalswitch"
-version = "0.2.2"
+version = "0.2.3"
 description = "PLocalSwitch - 本地部署 LLM API 代理中转站（OpenAI v1 兼容网关）+ 桌面管理壳"
 authors = ["you"]
 license = "MIT OR Apache-2.0"

@@ -8,7 +8,8 @@ import { NavLink } from 'react-router-dom';
 import { getWidgets } from '@plugins/index';
 import { SafeRender } from '@plugins/index';
 import { invoke } from '@commands/index';
-import { gatewayStatus, gatewayStart, gatewayStop, gatewayRestart } from '@commands/app';
+import { gatewayStatus, gatewayStart, gatewayStop, gatewayRestart, gatewayAutoRestart } from '@commands/app';
+import PillSwitch from '@components/ui/PillSwitch';
 import { accessHost } from '../utils/net';
 
 /**
@@ -37,6 +38,9 @@ const Home: React.FC = () => {
   const [ctrlBusy, setCtrlBusy] = useState(false);
   const [requests, setRequests] = useState(0);
   const [uptime, setUptime] = useState(0);
+  // 崩溃自动重启
+  const [autoRestart, setAutoRestart] = useState(false);
+  const [restarts, setRestarts] = useState(0);
 
   const refreshGateway = async () => {
     try {
@@ -45,7 +49,15 @@ const Home: React.FC = () => {
       setListenAddr(accessHost(st.listen));
       setRequests(st.requests_total ?? 0);
       setUptime(st.uptime_seconds ?? 0);
+      setAutoRestart(!!st.auto_restart);
+      setRestarts(st.restarts ?? 0);
     } catch { /* 无后端时忽略 */ }
+  };
+
+  const toggleAutoRestart = async (v: boolean) => {
+    setAutoRestart(v); // 乐观更新
+    try { const ok = await gatewayAutoRestart(v); setAutoRestart(!!ok); }
+    catch { await refreshGateway(); }
   };
 
   const toggleGateway = async (target: 'start' | 'stop') => {
@@ -147,7 +159,17 @@ const Home: React.FC = () => {
             </PillButton>
           </div>
         </div>
-        <div className="mt-3 text-[11px] text-neutral-500">
+        <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-900 flex flex-wrap items-center justify-between gap-3">
+          <PillSwitch size="sm" checked={autoRestart} onChange={toggleAutoRestart}
+            label={t('home.auto_restart')}
+            description={t('home.auto_restart_desc')} />
+          {restarts > 0 && (
+            <span className="text-[11px] text-neutral-500 tabular-nums">
+              {t('home.auto_restarts')} · {restarts}
+            </span>
+          )}
+        </div>
+        <div className="mt-2 text-[11px] text-neutral-500">
           {t('home.stop_hint')}
         </div>
       </PillCard>

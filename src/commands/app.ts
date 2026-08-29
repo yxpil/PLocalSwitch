@@ -14,5 +14,8 @@ export const gatewayStatus = (): Promise<any>   => invoke<any>('gateway_status')
 export const gatewayStart  = (): Promise<boolean> => invoke<boolean>('gateway_start');
 export const gatewayStop   = (): Promise<boolean> => invoke<boolean>('gateway_stop');
 export const gatewayRestart = (): Promise<boolean> => invoke<boolean>('restart_graceful');
+/** 网关崩溃自动重启开关：enable 省略 = 查询当前状态 */
+export const gatewayAutoRestart = (enable?: boolean): Promise<boolean> =>
+  invoke<boolean>('gateway_auto_restart', enable !== undefined ? { enable } : {});
 
 export * from './storage';

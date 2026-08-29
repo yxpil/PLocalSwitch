@@ -17,6 +17,8 @@ pub struct GatewayStatus {
     pub active_requests: u32,
     pub nodes_total: usize,
     pub nodes_fault: usize,
+    pub auto_restart: bool,
+    pub restarts: u64,
     pub error_counters: std::collections::BTreeMap<ErrorLabel, u64>,
 }
 
@@ -37,6 +39,8 @@ pub async fn gateway_status(
         active_requests: 0,
         nodes_total,
         nodes_fault: 0,
+        auto_restart: ctrl.auto_restart_enabled(),
+        restarts: ctrl.restart_count(),
         error_counters: Default::default(),
     }))
 }
@@ -84,4 +88,18 @@ pub async fn restart_graceful(
         .or_else(|e| {
             if app.gateway_ctrl.is_running() { Ok(ApiResponse::ok(true)) } else { Err(e) }
         })
+}
+
+/// 查询 / 切换网关崩溃自动重启开关（enable=None 表示仅查询）
+#[tauri::command]
+pub fn gateway_auto_restart(
+    state: tauri::State<'_, std::sync::Arc<crate::state::AppState>>,
+    enable: Option<bool>,
+) -> CommandResult<ApiResponse<bool>> {
+    let _ = state.bump_request();
+    if let Some(on) = enable {
+        state.gateway_ctrl.set_auto_restart(on);
+        tracing::info!("网关自动重启已{}", if on { "开启" } else { "关闭" });
+    }
+    Ok(ApiResponse::ok(state.gateway_ctrl.auto_restart_enabled()))
 }

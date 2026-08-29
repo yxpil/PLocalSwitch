@@ -238,8 +238,11 @@ pub fn build_router(app: Arc<AppState>) -> Router {
     let manage_api = manage_routes::router(app.clone());
     let metrics_handler = get(observability_prometheus_handler);
 
-    let concurrency_limit = app.cfg.http.global_concurrency_limit;
-    let body_limit        = app.cfg.http.request_body_max_bytes;
+    // 每次 serve 启动时从 cfg_swap 读取（服务重启后可拿到新配置；guard 即时释放）
+    let (concurrency_limit, body_limit) = {
+        let cfg0 = app.cfg_swap.load();
+        (cfg0.http.global_concurrency_limit, cfg0.http.request_body_max_bytes)
+    };
 
     // gw: CORS 从 gateway.yaml cors 段读取（支持 allow_credentials；origins 含 * 时回退 Any）
     let cors_layer   = build_cors_layer(&app.cfg_swap.load().cors);
@@ -278,8 +281,10 @@ async fn observability_prometheus_handler(
 /// 启动入口（由 safety_runtime::spawn_axum_server 调用）：绑定 TCP 并服务
 pub async fn serve_forever(app: Arc<AppState>, shutdown: tokio::sync::oneshot::Receiver<()>) -> AppResult<()> {
     let router = build_router(app.clone());
-    let listener = tokio::net::TcpListener::bind(&app.cfg.http.listen).await?;
-    tracing::info!("axum gateway listening on {}", app.cfg.http.listen);
+    // 监听地址从 cfg_swap 读取：自动重启/手动重启服务后可绑定新端口；guard 即时释放
+    let listen = app.cfg_swap.load().http.listen.clone();
+    let listener = tokio::net::TcpListener::bind(&listen).await?;
+    tracing::info!("axum gateway listening on {}", listen);
     axum::serve(listener, router)
         .with_graceful_shutdown(async move {
             let _ = shutdown.await;
