@@ -51,6 +51,9 @@ const Chat: React.FC = () => {
         setModels(aliases);
         setModel((cur) => cur || aliases[0] || '');
       }
+      // 自动填写 Client Key：没手输时用第一个启用的 key（网关启动会自动生成默认 key，开箱即用）
+      const keys: any[] = (cfg?.billing?.client_keys ?? []).filter((k: any) => k.enabled !== false);
+      if (keys.length) setKey((cur) => cur || keys[0].key || '');
     } catch { /* 忽略 */ }
     // 2) 上游真实模型列表（invoke 解包后 resp 即数组 [{id,group}]）；成功则替换
     try {
