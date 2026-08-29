@@ -80,7 +80,9 @@ const GatewaySection: React.FC = () => {
         tpm: k.tpm ?? 0,
         enabled: k.enabled !== false,
       })));
-      setGroups((cfg?.node_groups ?? []).map((g: any) => ({
+      // 分组机制已废弃（v0.2.6 扁平模型路由）：过滤掉 0 节点的空组
+      // （出厂默认配置模板带的 group-openai-global / group-ollama-* 等示例空组不再显示）
+      setGroups((cfg?.node_groups ?? []).filter((g: any) => (g.nodes ?? []).length > 0).map((g: any) => ({
         id: g.id,
         enabled: g.enabled !== false,
         nodeCount: (g.nodes ?? []).length,
