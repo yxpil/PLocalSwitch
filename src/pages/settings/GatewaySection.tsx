@@ -85,6 +85,9 @@ const GatewaySection: React.FC = () => {
 
   useEffect(() => { load(); }, []);
 
+  // 分组下拉选项：真实上游组 + 「自动匹配」（让路由自动落到有节点的组）
+  const groupOptions = ['auto', ...groups.map((g) => g.id)];
+
   const onCopy = async (text: string, label = '已复制') => {
     try { await navigator.clipboard.writeText(text); } catch { /* noop */ }
     setCopyToast(label);
@@ -295,10 +298,12 @@ const GatewaySection: React.FC = () => {
                   className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
               </div>
               <div className="col-span-2 min-w-0">
-                <input value={a.group} placeholder="default"
-                  onChange={e => updateAlias(i, { group: e.target.value })}
-                  onBlur={() => persistAliases(aliases)}
-                  className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40" />
+                <select value={groupOptions.includes(a.group) ? a.group : 'auto'}
+                  onChange={e => updateAlias(i, { group: e.target.value }, true)}
+                  className="w-full font-mono text-xs bg-neutral-100 dark:bg-neutral-900 rounded-pill px-3 py-1.5 outline-none focus:ring-2 focus:ring-neutral-400/40">
+                  <option value="auto">自动匹配</option>
+                  {groups.map((g) => <option key={g.id} value={g.id}>{g.id}</option>)}
+                </select>
               </div>
               <div className="col-span-1 flex justify-end">
                 <button aria-label={t('gateway.toggle_enabled')} onClick={() => persistAliases(aliases.map((x, idx) => idx === i ? { ...x, enabled: !x.enabled } : x))}
