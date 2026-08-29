@@ -116,6 +116,25 @@ impl AppState {
     pub fn uptime_seconds(&self) -> i64 { chrono::Utc::now().timestamp() - self.started_at }
 
     pub async fn bootstrap(cfg: Arc<AppConfig>) -> AppResult<Self> {
+        // 开箱即用：若没有任何 client key，自动生成一个默认 key 并落盘，避免一装好就 401
+        let cfg = {
+            let mut cfg = (*cfg).clone();
+            if cfg.billing.client_keys.is_empty() {
+                let def_key = format!("sk-{}", uuid::Uuid::new_v4().simple());
+                cfg.billing.client_keys.push(crate::config::ClientKey {
+                    key: def_key.clone(),
+                    name: "default".into(),
+                    group: String::new(),
+                    rpm: 60, tpm: 100_000, concurrency: 0, balance_cny: 0.0,
+                    daily_hard_quota_tokens: 0, total_hard_quota_tokens: 0,
+                    allow_overdraft: false, enabled: true, rate_plan: "default".into(),
+                });
+                let _ = crate::config::save_to_disk(&cfg);
+                tracing::info!("未配置 client key，已自动生成默认 key：{def_key}（可在「设置 → 网关」查看/复制）");
+            }
+            Arc::new(cfg)
+        };
+
         // 1. DB
         let db = match cfg.db.backend.as_str() {
             "sqlite" => {
