@@ -182,7 +182,10 @@ const Switch: React.FC = () => {
   // ---------- 下游 Client Key ----------
   const openAddKey = () => {
     setEditingKey(null);
-    setKName(''); setKKey(''); setKGroup('default');
+    // 自动生成 key：打开「新增 Client Key」即填好 key 和名称，无需手填
+    const hex = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map((b) => b.toString(16).padStart(2, '0')).join('');
+    setKName(`key${keys.length + 1}`); setKKey(`sk-${hex}`); setKGroup('default');
     setShowKeyForm(true);
   };
   const openEditKey = (k: ClientKey) => {
