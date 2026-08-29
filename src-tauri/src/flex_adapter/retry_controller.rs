@@ -82,11 +82,10 @@ pub async fn attempt_chain(
     // 块内提取后立即释放 ArcSwap guard，避免跨 await 持有导致 future !Send。
     let (max_subs, policy, mask) = {
         let cfg_rt = state.cfg_swap.load();
-        (
-            cfg_rt.flex_adapter.global_max_sub_attempts.max(1),
-            cfg_rt.policy.clone(),
-            cfg_rt.masking.clone(),
-        )
+        // AUTOMODE 候选链预期 24~48 个：配置值仅作基准，强制下限 24（上限 48 硬保护）
+        ((cfg_rt.flex_adapter.global_max_sub_attempts.max(1) as u32).clamp(24, 48),
+         cfg_rt.policy.clone(),
+         cfg_rt.masking.clone())
     };
     let mut subs: Vec<SubAttempt> = Vec::new();
     let mut last_err: Option<AppError> = None;

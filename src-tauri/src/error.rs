@@ -72,6 +72,11 @@ pub enum AppError {
     #[error("label={label:?} {message}")]
     Labeled { label: ErrorLabel, message: String },
 
+    /// AUTOMODE/多候选链全失败：detail 为已尝试源的 host 级清单（只含 host+状态码，绝无 token）
+    /// 应用户要求必须告知「试过哪些链接」，to_openai_error 会把它放进 message。
+    #[error("候选链失败: {detail}")]
+    ChainFailed { detail: String },
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
@@ -83,6 +88,7 @@ impl AppError {
         use ErrorLabel::*;
         match self {
             Labeled { label, .. } => *label,
+            ChainFailed { .. } => Upstream5xx,
             Reqwest(e) => reqwest_to_label(e),
             Sqlx(_)    => Internal,
             Io(e)      => io_to_label(e),
@@ -107,6 +113,16 @@ impl AppError {
         // 其余统一按 label 分类，保证与 HTTP 状态码映射（error_resp.rs）完全一致，
         // 避免出现 503 却带 internal_error 的矛盾响应。
         let lbl = self.label();
+        // 候选链全失败：用户明确要求透出「试过哪些源」（host 级+状态码，无 token/路径查询串）
+        if let AppError::ChainFailed { detail } = self {
+            return serde_json::json!({
+                "error": {
+                    "message": detail,
+                    "type":    "gateway_error",
+                    "code":    "upstream_chain_failed",
+                }
+            });
+        }
         let (code, message) = (lbl.to_string().clone(), client_message_for_label(&lbl));
         serde_json::json!({
             "error": {
