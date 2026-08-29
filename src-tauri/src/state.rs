@@ -119,8 +119,14 @@ impl AppState {
         // 1. DB
         let db = match cfg.db.backend.as_str() {
             "sqlite" => {
-                let path = &cfg.db.sqlite_path;
-                if let Some(parent) = std::path::Path::new(path).parent() {
+                // 相对路径统一归一到用户数据目录（不依赖工作目录），避免安装到只读目录（如 %ProgramFiles%）时建库失败导致静默退出
+                let raw = &cfg.db.sqlite_path;
+                let path = if std::path::Path::new(raw).is_absolute() {
+                    raw.clone()
+                } else {
+                    APP_DIRS.data_dir.join(raw.trim_start_matches("./")).to_string_lossy().into_owned()
+                };
+                if let Some(parent) = std::path::Path::new(&path).parent() {
                     tokio::fs::create_dir_all(parent).await.ok();
                 }
                 let opts = sqlx::sqlite::SqlitePoolOptions::new()
