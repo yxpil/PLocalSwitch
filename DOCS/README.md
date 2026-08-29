@@ -1,6 +1,6 @@
 # PLocalSwitch 文档中心
 
-> **PLocalSwitch** —— 本地部署的 LLM API 代理中转网关。**入站多协议**（OpenAI / Anthropic / Gemini 客户端可直接接入），**对外统一输出 OpenAI v1 契约**，内置多厂商协议适配、双账本计费、节点质量评估、流式安全链路与桌面管理界面。
+> **PLocalSwitch** —— 本地部署的 LLM API 代理中转网关。对外以 **OpenAI v1 为统一契约**，内部**双向转换**到各类上游协议（Anthropic / Gemini / Ollama / 千帆 / DashScope / 星火 / 混元 / Bedrock / Cohere / vLLM / TGI 等），并兼容 Anthropic / Gemini 客户端原生接入。内置多厂商协议适配、双账本计费、节点质量评估、流式安全链路与桌面管理界面。
 
 本目录是完整文档索引。所有文档之间通过链接互相跳转，建议从本页开始。
 
@@ -61,7 +61,7 @@ PublicVersion/
 
 ## 🔒 安全设计原则（贯穿所有模块）
 
-1. **入站多协议，出站统一 OpenAI v1**：客户端可用 OpenAI / Anthropic / Gemini 任意一种协议接入（`/v1/chat/completions`、`/v1/messages`、`/gemini/v1beta/models/...`），网关归一化为内部 OpenAI 模型，对外输出标准 OpenAI v1 格式。
+1. **OpenAI v1 统一契约 + 双向协议转换**：对外以 `/v1/chat/completions` 等 OpenAI v1 为主入口；内部把请求双向转换到各类上游协议，并兼容 Anthropic（`/v1/messages`）、Gemini（`/gemini/v1beta/models/...`）客户端原生接入。
 2. **网关只做转发适配**，不做 LLM 推理、不实现 Agent、不持久化会话。
 3. **流式请求一旦向客户端吐出过任意 chunk，立即锁死当前协议/节点**，禁止任何重试/回退/重新试探；仅完整非流式请求允许完整试探链路。
 4. **敏感信息三重防护**：上游地址、Token 在日志/trace 中自动脱敏打码；对外 error 报文绝不透出上游地址/token/内部诊断。
