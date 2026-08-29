@@ -86,12 +86,9 @@ pub async fn execute_stream(
 ) -> AppResult<Pin<Box<dyn Stream<Item = Result<SseChunk, String>> + Send + 'static>>> {
     use futures::StreamExt;
 
-    // 流式头阶段候选数：以配置为基准，但强制下限 24 / 硬上限 48
-    // （AUTOMODE 场景 6 个太少，用户预期「多试试多等等」；上限防 48 源 × 超时把客户端吊死）
-    let max_stream_candidates = {
-        let cfg_rt = state.cfg_swap.load();
-        (cfg_rt.flex_adapter.global_max_sub_attempts.max(1) as usize).clamp(24, 48)
-    };
+    // 流式头阶段候选数：全量尝试（AUTOMODE 候选抽样上限 48）
+    // 用户要求「多试试多等待」：坏源占名额也好过漏掉排在后面的可用源
+    let max_stream_candidates = candidates.len().min(48);
     let mask = state.cfg_swap.load().masking.clone();
 
     let mut last_err_msg = String::from("无可用候选");
@@ -104,6 +101,8 @@ pub async fn execute_stream(
         let c_host = endpoint_host(&c.endpoint);
         // 每个候选用它自己的 real_model（多源同名场景各候选模型名不同）
         req.model = c.real_model.clone();
+        // 错误清单条目：host[模型名]:结果 —— 定位「哪个源的哪个模型」失败
+        let c_label = format!("{c_host}[{}]", c.real_model);
         let proto = crate::flex_adapter::protocol_sniffer::try_cached(state, &c.node_id).unwrap_or(c.protocol);
         let adapter = crate::backend_adapters::adapter_for(proto);
         let masked = c.to_masked(&mask);
@@ -128,7 +127,7 @@ pub async fn execute_stream(
                     Err(_) => {
                         tracing::error!(target: "flex_adapter", "stream send timeout (45s, no response header, node={})", c.node_id);
                         last_err_msg = "上游 45 秒未响应（已超时）".into();
-                        tried_list.push(format!("{c_host}:45s超时"));
+                        tried_list.push(format!("{c_label}:45s超时"));
                         None
                     }
                 }
@@ -153,7 +152,7 @@ pub async fn execute_stream(
             }
             tracing::warn!(target: "flex_adapter", "stream upstream status {} (node={}) → try next candidate", status.as_u16(), c.node_id);
             last_err_msg = format!("upstream status {}", status.as_u16());
-            tried_list.push(format!("{c_host}:{status}"));
+            tried_list.push(format!("{c_label}:{status}"));
             sub.finish_fail(crate::error::ErrorLabel::Upstream5xx, Some(status.as_u16()), crate::observability::trace::SubAttemptOutcome::FailedRetried);
             trace.sub_attempt_ids.push(sub.sub_attempt_id);
             continue;

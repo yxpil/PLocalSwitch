@@ -160,6 +160,14 @@ pub async fn route_client_request(
         // 同一节点可能出现在多个组 → 按 node_id 去重，保留首个
         let mut seen = std::collections::HashSet::new();
         cands.retain(|c| seen.insert(c.node_id.clone()));
+        // 源定向请求（model 带 `host|` 前缀）：只保留 host 匹配的候选——
+        // 谁家的模型就发给谁家，绝不撒网到同组的其它源（host 不中时保留原候选兜底）
+        if let Some(ph) = &prefer_host {
+            let filtered: Vec<CandidateNode> = cands.iter()
+                .filter(|c| endpoint_host(&c.endpoint) == *ph)
+                .cloned().collect();
+            if !filtered.is_empty() { cands = filtered; }
+        }
     }
     // 兜底 1：目录未收录（如上游 /v1/models 不可用）时，按别名配置的分组展开
     if cands.is_empty() {
@@ -206,31 +214,59 @@ fn endpoint_host(endpoint: &str) -> String {
     rest.split('/').next().unwrap_or("").to_ascii_lowercase()
 }
 
-/// AUTOMODE：把模型目录里每个「源×模型」条目展开成候选（各带自己的真实模型名），
-/// 交给柔性层重试链自动降级——源越多越稳。同一 (节点,模型) 去重；
-/// 候选爆炸防护：均匀抽样至多 48 个（保持源分布，不集中单点）。
-async fn automode_candidates(state: &Arc<AppState>, is_stream: bool) -> AppResult<Vec<CandidateNode>> {
-    let snapshot: Vec<(Vec<String>, String)> = state.node_runtime.model_catalog.iter()
-        .map(|e| {
-            let key = e.key();
-            let model = key.rsplit('|').next().unwrap_or(key).to_string();
-            (e.value().clone(), model)
-        })
-        .collect();
+/// AUTOMODE：把模型目录里每个「源×模型」条目展开成候选。
+/// 铁律：谁家的模型只发给谁家 —— 目录 key 是 `host|model`，候选节点必须 endpoint host 严格匹配该 host。
+/// （v0.2.21 修复：旧实现走 expand_candidates 按组展开，manual 大杂烩组会把 A 家模型名发给组里全部
+///   B 家节点，导致 400/403/404 撒网式失败——即「发疯」。）
+/// 同一 (节点,模型) 去重；候选爆炸防护：均匀抽样至多 48 个（保持源分布，不集中单点）。
+async fn automode_candidates(state: &Arc<AppState>, _is_stream: bool) -> AppResult<Vec<CandidateNode>> {
+    use crate::observability::masking::mask_token;
+    // 展开全部可用节点（分组已废弃，组 id 仅作 trace 展示）
+    let (mask_cfg, avail): (crate::config::MaskingConfig, Vec<(crate::config::UpstreamNode, String)>) = {
+        let cfg = state.cfg_swap.load();
+        let mut v = Vec::new();
+        for g in cfg.node_groups.iter().filter(|g| g.enabled) {
+            for n in &g.nodes {
+                if !n.enabled || n.hard_disable { continue; }
+                // 临时 ban 过滤（与 expand_candidates 同规则）
+                let banned = state.node_runtime.temp_ban_until.get(&n.id)
+                    .map(|t| *t as u128 > group_selector::now_ms()).unwrap_or(false);
+                if banned { continue; }
+                v.push((n.clone(), g.id.clone()));
+            }
+        }
+        (cfg.masking.clone(), v)
+    };
+
     let mut cands: Vec<CandidateNode> = Vec::new();
-    for (groups, model) in snapshot {
-        for gid in groups {
-            let fb = model_alias::ResolvedAlias {
-                real_model: model.clone(),
-                group: gid,
-                cache_enable: false,
-                ttl_seconds: None,
-                charge_on_cache_hit: false,
-            };
-            let v = crate::router::group_selector::expand_candidates(state, &fb, is_stream).await.unwrap_or_default();
-            cands.extend(v);
+    for e in state.node_runtime.model_catalog.iter() {
+        let key = e.key();
+        // host|model 严格配对：host 不匹配的节点绝不进入该模型的候选
+        let Some((host, model)) = key.split_once('|') else { continue };
+        let host = host.trim().to_ascii_lowercase();
+        if host.is_empty() || model.is_empty() { continue; }
+        for (n, gid) in &avail {
+            if endpoint_host(&n.endpoint) != host { continue; }
+            let proto = n.protocol_hints.first().and_then(|p| p.parse().ok()).unwrap_or(ProtocolKind::OpenAI);
+            let key0 = n.api_keys.first().cloned().unwrap_or_default();
+            let m_lc = model.to_ascii_lowercase();
+            let e_lc = n.endpoint.to_ascii_lowercase();
+            cands.push(CandidateNode {
+                node_id: n.id.clone(),
+                group_id: gid.clone(),
+                real_model: model.to_string(),
+                endpoint: n.endpoint.clone(),
+                protocol: proto,
+                candidate_protocols: crate::flex_adapter::protocol_sniffer::candidate_sequence(&n.protocol_hints),
+                weight: n.weight,
+                quality: crate::node_quality::quality_of(state, &n.id).unwrap_or(50),
+                free: m_lc.contains("free") || e_lc.contains("free"),
+                api_key_name: mask_token(&key0, &mask_cfg),
+                _api_key: key0,
+            });
         }
     }
+
     let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     cands.retain(|c| seen.insert((c.node_id.clone(), c.real_model.clone())));
     if cands.len() > 48 {
