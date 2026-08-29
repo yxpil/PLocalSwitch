@@ -24,6 +24,12 @@ pub async fn expand_candidates(state: &Arc<AppState>, r: &ResolvedAlias, _stream
             endpoint: n.endpoint.clone(), protocol: proto,
             candidate_protocols: crate::flex_adapter::protocol_sniffer::candidate_sequence(&n.protocol_hints),
             weight: n.weight, quality: crate::node_quality::quality_of(state, &n.id).unwrap_or(50),
+            // 免费源自动识别：大多数免费 API 的模型名或端点自带 free 关键字
+            free: {
+                let m = r.real_model.to_ascii_lowercase();
+                let e = n.endpoint.to_ascii_lowercase();
+                m.contains("free") || e.contains("free")
+            },
             api_key_name: mask_token(&key, mask_cfg),
             _api_key: key,
         });

@@ -30,6 +30,7 @@ pub struct CandidateNode {
     pub weight:       f64,
     pub quality:      u8,           // 0..=100
     pub api_key_name: String,       // 脱敏 key 前缀，用于 observability
+    pub free:         bool,         // 免费源标记（AUTOMODE 免费优先排序用）
     #[doc(hidden)] pub _api_key:   String, // 明文，仅请求过程内存中存在，严禁落盘
 }
 

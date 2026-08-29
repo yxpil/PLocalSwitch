@@ -49,11 +49,13 @@ const GatewaySection: React.FC = () => {
   const [aliases, setAliases] = useState<any[]>([]);
   const [aliasCount, setAliasCount] = useState(0);
   const [automode, setAutomode] = useState(true);
+  const [preferFree, setPreferFree] = useState(false);
 
   const load = async () => {
     try {
       const cfg: any = await invoke('load_config');
       setAutomode(cfg?.automode?.enabled !== false);
+      setPreferFree(cfg?.automode?.prefer_free === true);
       setListen(accessHost(cfg?.http?.listen));
       setAliasCount((cfg?.model_aliases ?? []).length);
       setAliases((cfg?.model_aliases ?? []).map((a: any) => ({
@@ -116,6 +118,16 @@ const GatewaySection: React.FC = () => {
     try {
       const cfg: any = await invoke('load_config');
       cfg.automode = { ...(cfg.automode ?? {}), enabled: v };
+      await invoke('save_config', { cfg });
+    } catch { /* 静默 */ }
+  };
+
+  /* 免费源优先：模型名/端点含 free 的源自动排前面先试 */
+  const togglePreferFree = async (v: boolean) => {
+    setPreferFree(v);
+    try {
+      const cfg: any = await invoke('load_config');
+      cfg.automode = { ...(cfg.automode ?? {}), prefer_free: v };
       await invoke('save_config', { cfg });
     } catch { /* 静默 */ }
   };
@@ -227,6 +239,18 @@ const GatewaySection: React.FC = () => {
           </div>
           <div className="shrink-0">
             <PillSwitch size="sm" checked={automode} onChange={toggleAutomode} label="" />
+          </div>
+        </div>
+        {/* 免费源优先：自动识别模型名/端点含 free 的源，AUTOMODE/路由候选排前面先试 */}
+        <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-900 flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-medium">免费源优先</div>
+            <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
+              自动识别模型名或端点带 free 关键字的免费源，请求时排前面先试；免费源全部失败再落到付费源。
+            </p>
+          </div>
+          <div className="shrink-0">
+            <PillSwitch size="sm" checked={preferFree} onChange={togglePreferFree} label="" />
           </div>
         </div>
       </PillCard>

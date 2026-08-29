@@ -31,9 +31,11 @@ pub struct AppConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomodeConfig {
     #[serde(default = "default_true")] pub enabled: bool,
+    /// 免费源优先：AUTOMODE 候选中标记为免费的节点排在前面试
+    #[serde(default)] pub prefer_free: bool,
 }
 impl Default for AutomodeConfig {
-    fn default() -> Self { Self { enabled: true } }
+    fn default() -> Self { Self { enabled: true, prefer_free: false } }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
