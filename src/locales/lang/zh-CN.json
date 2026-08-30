@@ -90,7 +90,7 @@
     "light": "浅色",
     "dark": "深色",
     "compact": "紧凑密度",
-    "compact_desc": "（Demo 开关，未来联动 padding）",
+    "compact_desc": "开启后全局密度收紧（根字号 14px），同屏可显示更多内容",
     "color_light": "浅色主色（纯黑）",
     "color_dark": "深色主色（纯白）"
   },
@@ -146,6 +146,8 @@
   },
   "traces": {
     "title": "链路追踪",
+    "tab_trace": "链路追踪",
+    "tab_billing": "对账账单",
     "description": "Trace = 一次客户端请求 · SubAttempt = 一次上游尝试",
     "search_label": "搜索 Trace / Model / Client",
     "search_placeholder": "输入 trace_id 前缀、模型名、client 片段...",
@@ -164,7 +166,26 @@
     "col_tokens": "Tokens",
     "export": "导出 Excel",
     "export_done": "已导出 {{count}} 条记录",
-    "export_fail": "导出失败"
+    "export_fail": "导出失败",
+    "batch_delete": "删除选中",
+    "delete_confirm": "确认删除选中的 {{count}} 条 Trace？",
+    "select_all": "全选本页",
+    "select_row": "选择该行",
+    "page_size": "每页",
+    "page_info": "第 {{page}} / {{pages}} 页 · 共 {{total}} 条",
+    "prev_page": "上一页",
+    "next_page": "下一页"
+  },
+  "errlog": {
+    "title": "错误日志",
+    "hint": "共 {{count}} 条 · 转发链路失败自动记录（凭证自动打码）",
+    "clear": "清空",
+    "clear_confirm": "确认清空全部错误日志？",
+    "empty": "暂无错误记录。转发链路失败时会自动记录到这里。",
+    "col_time": "时间",
+    "col_context": "模块",
+    "col_label": "错误标签",
+    "col_message": "内容"
   },
   "switch": {
     "title": "模型与路由",
@@ -227,7 +248,6 @@
     "keys_hint": "下游连网关时填 Authorization: Bearer <key>",
     "col_name": "名称",
     "col_key": "Key（脱敏）",
-    "col_group": "分组",
     "col_rpm": "RPM",
     "col_enabled": "启用",
     "toggle_enabled": "切换启用",
@@ -280,9 +300,7 @@
     "version": "版本",
     "request": "请求",
     "uptime": "运行",
-    "danger_ops": "危险操作",
-    "danger_hint": "重置所有用户配置到默认值（日志与文件不受影响）",
-    "reset_config": "重置配置"
+    "data_dir": "数据目录"
   },
   "tray": {
     "show": "显示主窗口",

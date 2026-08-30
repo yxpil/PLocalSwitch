@@ -3449,7 +3449,7 @@ dependencies = [
 
 [[package]]
 name = "plocalswitch"
-version = "0.2.23"
+version = "0.2.27"
 dependencies = [
  "ahash",
  "anyhow",

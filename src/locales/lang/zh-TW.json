@@ -90,7 +90,7 @@
     "light": "淺色",
     "dark": "深色",
     "compact": "緊湊密度",
-    "compact_desc": "（Demo 開關，未來聯動 padding）",
+    "compact_desc": "開啟後全域密度收緊（根字號 14px），同屏可顯示更多內容",
     "color_light": "淺色主色（純黑）",
     "color_dark": "深色主色（純白）"
   },
@@ -146,6 +146,8 @@
   },
   "traces": {
     "title": "鏈路追蹤",
+    "tab_trace": "鏈路追蹤",
+    "tab_billing": "對帳帳單",
     "description": "Trace = 一次客戶端請求 · SubAttempt = 一次上游嘗試",
     "search_label": "搜尋 Trace / Model / Client",
     "search_placeholder": "輸入 trace_id 前綴、模型名、client 片段...",
@@ -164,7 +166,26 @@
     "col_tokens": "Tokens",
     "export": "匯出 Excel",
     "export_done": "已匯出 {{count}} 筆記錄",
-    "export_fail": "匯出失敗"
+    "export_fail": "匯出失敗",
+    "batch_delete": "刪除選中",
+    "delete_confirm": "確認刪除選中的 {{count}} 筆 Trace？",
+    "select_all": "全選本頁",
+    "select_row": "選擇該行",
+    "page_size": "每頁",
+    "page_info": "第 {{page}} / {{pages}} 頁 · 共 {{total}} 筆",
+    "prev_page": "上一頁",
+    "next_page": "下一頁"
+  },
+  "errlog": {
+    "title": "錯誤日誌",
+    "hint": "共 {{count}} 筆 · 轉發鏈路失敗自動記錄（憑證自動打碼）",
+    "clear": "清空",
+    "clear_confirm": "確認清空全部錯誤日誌？",
+    "empty": "暫無錯誤記錄。轉發鏈路失敗時會自動記錄到這裡。",
+    "col_time": "時間",
+    "col_context": "模組",
+    "col_label": "錯誤標籤",
+    "col_message": "內容"
   },
   "switch": {
     "title": "模型與路由",
@@ -218,7 +239,6 @@
     "keys_hint": "下游連閘道時填 Authorization: Bearer <key>",
     "col_name": "名稱",
     "col_key": "Key（脫敏）",
-    "col_group": "分組",
     "col_rpm": "RPM",
     "col_enabled": "啟用",
     "toggle_enabled": "切換啟用",
@@ -271,9 +291,7 @@
     "version": "版本",
     "request": "請求",
     "uptime": "運行",
-    "danger_ops": "危險操作",
-    "danger_hint": "重設所有使用者設定到預設值（日誌與檔案不受影響）",
-    "reset_config": "重設設定"
+    "data_dir": "資料目錄"
   },
   "tray": {
     "show": "顯示主視窗",

@@ -49,13 +49,57 @@ pub fn get_system_info(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResp
     }))
 }
 
-/// 最近转发记录（读取 DB 中的真实 trace）
+/// 转发记录（链路追踪页，分页）：返回 { items, total, page, page_size }
 #[tauri::command]
-pub async fn list_traces(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse<Vec<serde_json::Value>>> {
+pub async fn list_traces(
+    state: State<'_, Arc<AppState>>,
+    page: Option<i64>,
+    page_size: Option<i64>,
+) -> CommandResult<ApiResponse<serde_json::Value>> {
     let _ = state.bump_request();
     let app = state.inner().clone();
-    let traces = crate::services::trace_store::recent_traces(&app, 50).await;
-    Ok(ApiResponse::ok(traces))
+    let p = page.unwrap_or(1).max(1);
+    let ps = page_size.unwrap_or(50).clamp(10, 500);
+    let data = crate::services::trace_store::paged_traces(&app, p, ps).await;
+    Ok(ApiResponse::ok(data))
+}
+
+/// 批量删除转发记录（按 trace_id 列表）
+#[tauri::command]
+pub async fn delete_traces(state: State<'_, Arc<AppState>>, ids: Vec<String>) -> CommandResult<ApiResponse<u64>> {
+    let _ = state.bump_request();
+    let app = state.inner().clone();
+    let n = crate::services::trace_store::delete_traces(&app, &ids).await;
+    Ok(ApiResponse::ok(n))
+}
+
+/// 错误日志分页查询：返回 { items, total, page, page_size }
+#[tauri::command]
+pub async fn list_error_logs(
+    state: State<'_, Arc<AppState>>,
+    page: Option<i64>,
+    page_size: Option<i64>,
+) -> CommandResult<ApiResponse<serde_json::Value>> {
+    let _ = state.bump_request();
+    let app = state.inner().clone();
+    let data = crate::services::error_logger::paged_logs(&app, page.unwrap_or(1), page_size.unwrap_or(50)).await;
+    Ok(ApiResponse::ok(data))
+}
+
+/// 清空错误日志
+#[tauri::command]
+pub async fn clear_error_logs(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse<u64>> {
+    let _ = state.bump_request();
+    let app = state.inner().clone();
+    Ok(ApiResponse::ok(crate::services::error_logger::clear_logs(&app).await))
+}
+
+/// 按 id 批量删除错误日志
+#[tauri::command]
+pub async fn delete_error_logs(state: State<'_, Arc<AppState>>, ids: Vec<i64>) -> CommandResult<ApiResponse<u64>> {
+    let _ = state.bump_request();
+    let app = state.inner().clone();
+    Ok(ApiResponse::ok(crate::services::error_logger::delete_logs(&app, &ids).await))
 }
 
 /// 导出链路追踪为 Excel（xlsx）文件：前端先经 dialog save 拿到目标路径
@@ -64,7 +108,7 @@ pub async fn export_traces_excel(state: State<'_, Arc<AppState>>, path: String) 
     use rust_xlsxwriter::Workbook;
     let _ = state.bump_request();
     let app = state.inner().clone();
-    let traces = crate::services::trace_store::recent_traces(&app, 2000).await;
+    let traces = crate::services::trace_store::recent_traces(&app, -1).await; // -1 = LIMIT 无上限，导出全部
 
     let mut wb = Workbook::new();
     let sheet = wb.add_worksheet();

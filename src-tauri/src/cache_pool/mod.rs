@@ -23,8 +23,14 @@ pub async fn spawn_reclaim_loop(_state: Arc<AppState>) {
     // TODO: tokio::spawn(async move { loop { ... } });
 }
 
+/// 缓存总开关（运行时读热更新配置，设置页切换即时生效，无需重启）
+fn cache_enabled(state: &AppState) -> bool {
+    state.cfg_swap.load().cache_pool.enabled
+}
+
 /// 非流式查询：命中 → 返回 (entry, billing_treatment_enum)
 pub async fn try_get_non_stream(state: &Arc<AppState>, key: &u128) -> AppResult<Option<cache_entry::NonStreamEntry>> {
+    if !cache_enabled(state) { return Ok(None); }
     if let Some(backend) = &state.cache_backend {
         backend.get_non_stream(key).await
     } else {
@@ -34,8 +40,29 @@ pub async fn try_get_non_stream(state: &Arc<AppState>, key: &u128) -> AppResult<
 
 /// 非流式写入（仅当请求非 tool_use 且模型配置允许缓存）
 pub async fn put_non_stream(state: &Arc<AppState>, key: u128, entry: cache_entry::NonStreamEntry) -> AppResult<()> {
+    if !cache_enabled(state) { return Ok(()); }
     if let Some(backend) = &state.cache_backend {
         backend.put_non_stream(key, entry).await
+    } else {
+        Ok(())
+    }
+}
+
+/// 流式查询：命中 → 返回缓存的 SSE chunk 序列（重放，不再打上游）
+pub async fn try_get_stream(state: &Arc<AppState>, key: &u128) -> AppResult<Option<cache_entry::StreamEntry>> {
+    if !cache_enabled(state) { return Ok(None); }
+    if let Some(backend) = &state.cache_backend {
+        backend.get_stream(key).await
+    } else {
+        Ok(None)
+    }
+}
+
+/// 流式写入（流完整结束后调用；异常中断的流不会走到这里）
+pub async fn put_stream(state: &Arc<AppState>, key: u128, entry: cache_entry::StreamEntry) -> AppResult<()> {
+    if !cache_enabled(state) { return Ok(()); }
+    if let Some(backend) = &state.cache_backend {
+        backend.put_stream(key, entry).await
     } else {
         Ok(())
     }

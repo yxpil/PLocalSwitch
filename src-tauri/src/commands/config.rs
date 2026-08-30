@@ -49,18 +49,6 @@ pub async fn save_config(state: State<'_, Arc<AppState>>, cfg: AppConfig) -> Com
     Ok(ApiResponse::ok(cfg))
 }
 
-/// 重置配置：重新从 bundled gateway.yaml 加载
-#[tauri::command]
-pub async fn reset_config(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse<AppConfig>> {
-    let _ = state.bump_request();
-    let cfg = crate::config::reset_to_default()?;
-    state.cfg_swap.store(std::sync::Arc::new(cfg.clone()));
-    let reg = ClientKeyRegistry::from_cfg(&cfg.billing.client_keys);
-    *state.client_keys.write().await = reg;
-    tracing::info!("网关配置已重置为默认");
-    Ok(ApiResponse::ok(cfg))
-}
-
 /// 读取代理设置（设置页「网络」）
 #[tauri::command]
 pub fn get_proxy_settings(state: State<'_, Arc<AppState>>) -> CommandResult<ApiResponse<ProxySetting>> {

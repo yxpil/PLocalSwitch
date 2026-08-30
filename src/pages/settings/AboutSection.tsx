@@ -1,14 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import PillButton from '@components/ui/PillButton';
-import Icon from '@icons/index';
 import { useAppStore } from '@stores/app';
 
 const AboutSection: React.FC = () => {
   const { t } = useTranslation();
   const info = useAppStore(s => s.appInfo);
   const sys  = useAppStore(s => s.systemInfo);
-  const resetConfig = useAppStore(s => s.resetConfig);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
       <div className="rounded-softer border border-neutral-200/70 dark:border-neutral-800/70 p-5 space-y-2 text-sm">
@@ -18,15 +15,8 @@ const AboutSection: React.FC = () => {
         <Row label={t('about.request')}  value={sys ? String(sys.request_count) : '—'}/>
         <Row label={t('about.uptime')}  value={sys ? `${sys.uptime} s` : '—'}/>
       </div>
-      <div className="rounded-softer border border-neutral-200/70 dark:border-neutral-800/70 p-5 space-y-3">
-        <div>
-          <div className="text-sm font-semibold mb-1">{t('about.danger_ops')}</div>
-          <div className="text-xs text-neutral-500">{t('about.danger_hint')}</div>
-        </div>
-        <PillButton size="md" variant="danger"
-          leftIcon={<Icon name="rotate-ccw" size={14}/>} onClick={() => resetConfig()}>
-          {t('about.reset_config')}
-        </PillButton>
+      <div className="rounded-softer border border-neutral-200/70 dark:border-neutral-800/70 p-5 space-y-2 text-sm">
+        <Row label={t('about.data_dir')} value={useAppStore.getState().dataDir}/>
       </div>
     </div>
   );

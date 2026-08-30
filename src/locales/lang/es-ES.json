@@ -90,7 +90,7 @@
     "light": "Claro",
     "dark": "Oscuro",
     "compact": "Densidad compacta",
-    "compact_desc": "(Interruptor demo, controlará el padding más adelante)",
+    "compact_desc": "Al activarlo, la densidad de la interfaz se reduce globalmente (fuente base 14px), mostrando más contenido en pantalla",
     "color_light": "Color principal claro (negro puro)",
     "color_dark": "Color principal oscuro (blanco puro)"
   },
@@ -146,6 +146,8 @@
   },
   "traces": {
     "title": "Trazas",
+    "tab_trace": "Trazas",
+    "tab_billing": "Facturación",
     "description": "Trace = una solicitud de cliente · SubAttempt = un intento ascendente",
     "search_label": "Buscar Trace / Model / Client",
     "search_placeholder": "Introduzca prefijo de trace_id, nombre de modelo, fragmento de client...",
@@ -164,7 +166,26 @@
     "col_tokens": "Tokens",
     "export": "Exportar a Excel",
     "export_done": "{{count}} registros exportados",
-    "export_fail": "Error al exportar"
+    "export_fail": "Error al exportar",
+    "batch_delete": "Eliminar selección",
+    "delete_confirm": "¿Eliminar {{count}} traces seleccionados?",
+    "select_all": "Seleccionar página",
+    "select_row": "Seleccionar fila",
+    "page_size": "Por página",
+    "page_info": "Página {{page}} / {{pages}} · {{total}} en total",
+    "prev_page": "Anterior",
+    "next_page": "Siguiente"
+  },
+  "errlog": {
+    "title": "Registro de errores",
+    "hint": "{{count}} entradas · fallos de reenvío registrados automáticamente (credenciales enmascaradas)",
+    "clear": "Vaciar",
+    "clear_confirm": "¿Vaciar todo el registro de errores?",
+    "empty": "Aún no hay errores. Los fallos de reenvío se registrarán aquí automáticamente.",
+    "col_time": "Hora",
+    "col_context": "Módulo",
+    "col_label": "Etiqueta",
+    "col_message": "Mensaje"
   },
   "switch": {
     "title": "Modelos y rutas",
@@ -218,7 +239,6 @@
     "keys_hint": "El descendente envía Authorization: Bearer <key> al conectar",
     "col_name": "Nombre",
     "col_key": "Clave (enmascarada)",
-    "col_group": "Grupo",
     "col_rpm": "RPM",
     "col_enabled": "Activo",
     "toggle_enabled": "Alternar activación",
@@ -271,9 +291,7 @@
     "version": "Versión",
     "request": "Solicitudes",
     "uptime": "Tiempo activo",
-    "danger_ops": "Zona de peligro",
-    "danger_hint": "Restablece toda la configuración del usuario a los valores predeterminados (los registros y archivos no se ven afectados)",
-    "reset_config": "Restablecer configuración"
+    "data_dir": "Directorio de datos"
   },
   "tray": {
     "show": "Mostrar ventana principal",

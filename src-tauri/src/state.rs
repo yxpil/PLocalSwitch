@@ -197,9 +197,15 @@ impl AppState {
         let rate_limits  = RateLimitGroup::new(&cfg);
         let per_key_rate_limits = RateLimiter::new();
         let mem_cache    = Arc::new(InMemoryBackend::new(cfg.cache_pool.in_memory.clone()));
-        let cache_backend: Option<Arc<dyn CacheBackend>> = match cfg.cache_pool.implementation.as_str() {
-            "memory" => Some(mem_cache.clone()),
-            _ => None,
+        // v0.2.26 修复：bundled yaml 写的是 "in_memory"，旧代码只匹配 "memory" 永不相等 →
+        // 缓存后端从未启用；现同时接受两种写法，且尊重 cache_pool.enabled 总开关
+        let cache_backend: Option<Arc<dyn CacheBackend>> = if cfg.cache_pool.enabled {
+            match cfg.cache_pool.implementation.as_str() {
+                "memory" | "in_memory" => Some(mem_cache.clone()),
+                _ => None,
+            }
+        } else {
+            None
         };
         let tokenizers   = Arc::new(TokenizerPool::new(&cfg.billing.tokenizers));
         let metrics      = Arc::new(MetricsRegistry::new().expect("metrics registry init"));

@@ -5,7 +5,6 @@
 #![cfg(feature = "desktop-shell")]
 use crate::error::{CommandResult, ErrorLabel};
 use crate::models::ApiResponse;
-use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default)]

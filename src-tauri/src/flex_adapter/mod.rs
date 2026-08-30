@@ -84,7 +84,6 @@ pub async fn execute_stream(
     candidates:      &[CandidateNode],
     mut req:         ChatCompletionRequest,
 ) -> AppResult<Pin<Box<dyn Stream<Item = Result<SseChunk, String>> + Send + 'static>>> {
-    use futures::StreamExt;
 
     // 流式头阶段候选数：全量尝试（AUTOMODE 候选抽样上限 48）
     // 用户要求「多试试多等待」：坏源占名额也好过漏掉排在后面的可用源
@@ -172,6 +171,8 @@ pub async fn execute_stream(
     trace.human_readable_reason = Some(detail.clone());
     trace.close(502, None);
     crate::services::trace_store::record(state, &trace).await;
+    // 错误日志工具：流式候选链全失败落库（detail 仅 host+状态码，绝无 token）
+    crate::services::error_logger::record(state, "stream_chain", "upstream_chain_failed", &detail, &trace.trace_id).await;
     Err(crate::error::AppError::ChainFailed { detail })
 }
 
@@ -203,7 +204,11 @@ fn build_sse_stream(
                 Ok(b) => b,
                 Err(e) => {
                     tracing::error!(target: "flex_adapter", "stream read fail: {e}");
-                    Result::<(), String>::Err(sanitize_stream_err(&crate::error::AppError::Reqwest(e)))?;
+                    // 错误日志工具：流中断落库（脱敏后仅标签级信息）
+                    let ae = crate::error::AppError::Reqwest(e);
+                    crate::services::error_logger::record(&state, "stream_mid",
+                        &ae.label().to_string(), &sanitize_stream_err(&ae), &trace.trace_id).await;
+                    Result::<(), String>::Err(sanitize_stream_err(&ae))?;
                     unreachable!()
                 }
             };
@@ -226,7 +231,12 @@ fn build_sse_stream(
                         yield c;
                     }
                     Ok(None) => {}
-                    Err(e) => Result::<(), String>::Err(sanitize_stream_err(&e))?,
+                    Err(e) => {
+                        // 错误日志工具：流内解析失败落库（脱敏后仅标签级信息）
+                        crate::services::error_logger::record(&state, "stream_mid",
+                            &e.label().to_string(), &sanitize_stream_err(&e), &trace.trace_id).await;
+                        Result::<(), String>::Err(sanitize_stream_err(&e))?;
+                    }
                 }
             }
         }

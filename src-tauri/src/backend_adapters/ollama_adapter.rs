@@ -160,7 +160,7 @@ impl crate::backend_adapters::BackendAdapter for OllamaAdapter {
         } else { None };
         Ok(Some(SseChunk {
             id: Some(format!("ollama-{created}")),
-            object: Some("chat.completion.chunk"),
+            object: Some("chat.completion.chunk".to_string()),
             created: Some(created),
             model: Some(model),
             choices: vec![SseChoice { index: 0, delta: Some(delta), finish_reason }],

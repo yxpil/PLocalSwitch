@@ -47,7 +47,7 @@ impl QualityScore {
             node_id: node_id.into(), sample_count: samples,
             sample_sufficient: samples >= min_samples,
             total,
-            success_rate: sub_success / 100.0,
+            success_rate: if samples < min_samples { 0.0 } else { (sub_success / samples as f32) * 100.0 },
             latency_p99_ms: ((100.0 - sub_p99).max(0.0) * 50.0) as u64, // 演示：子分100 = 0ms；子分0 = 5s
             ttft_p99_ms:    ((100.0 - sub_ttft).max(0.0) * 20.0) as u64,
             error_1k:       ((100.0 - sub_err).max(0.0) * 10.0) as u32,

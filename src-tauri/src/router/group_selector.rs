@@ -2,7 +2,7 @@
 use crate::error::AppResult;
 use crate::router::{CandidateNode, ProtocolKind};
 use crate::state::AppState;
-use crate::observability::masking::{mask_endpoint, mask_token};
+use crate::observability::masking::mask_token;
 use super::model_alias::ResolvedAlias;
 use std::sync::Arc;
 pub async fn expand_candidates(state: &Arc<AppState>, r: &ResolvedAlias, _stream: bool) -> AppResult<Vec<CandidateNode>> {

@@ -126,6 +126,83 @@ const Chat: React.FC = () => {
   useEffect(() => { loadModels(); /* eslint-disable-next-line */ }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
+  // ---- 自动续接（v0.2.25）：当前模型报错且尚未输出任何内容时，自动换下一个候选模型重试 ----
+  // 候选优先级：其他源的同名模型（host|model）→ AUTOMODE → 其余任一未失败模型；整轮最多 3 次回退
+  const MAX_FALLBACKS = 3;
+  const labelOf = (id: string) => models.find((m) => m.id === id)?.label ?? id;
+  const pickFallback = (cur: string, failed: Set<string>): string | null => {
+    const cands = models.map((m) => m.id).filter((id) => id && id !== cur && !failed.has(id));
+    if (cands.length === 0) return null;
+    const curModel = cur.includes('|') ? cur.split('|').slice(1).join('|') : cur;
+    const sameModelOtherHost = cands.find((id) => id.includes('|') && id.split('|').slice(1).join('|') === curModel);
+    if (sameModelOtherHost) return sameModelOtherHost;
+    if (!cur.toUpperCase().startsWith('AUTOMODE')) {
+      const auto = cands.find((id) => id.toUpperCase() === 'AUTOMODE');
+      if (auto) return auto;
+    }
+    return cands[0];
+  };
+
+  const runStream = (modelId: string, history: Msg[], failed: Set<string>, prefixNote: string): Promise<void> => {
+    return new Promise(async (resolve) => {
+      const { Channel } = await import('@tauri-apps/api/core');
+      type Ev = { type: 'chunk' | 'done' | 'error'; text?: string; reasoning?: string; message?: string };
+      const ch = new Channel<Ev>();
+      let acc = '';        // 正文
+      let reasoning = '';  // 思考内容（reasoning_content，如 kimi-k3）
+      const render = () => {
+        const shown = (reasoning ? reasoning.split('\n').map((l) => `> ${l}`).join('\n') + '\n\n' : '') + acc;
+        setMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = { role: 'assistant', content: prefixNote + shown };
+          return next;
+        });
+      };
+      const failover = async (msg: string) => {
+        // 尚未输出任何内容 → 自动换模型续上；已输出内容 → 追加错误提示（不重试，避免重复）
+        if (acc === '' && reasoning === '' && failed.size < MAX_FALLBACKS) {
+          const nextId = pickFallback(modelId, failed);
+          if (nextId) {
+            const failedNext = new Set(failed).add(modelId);
+            const note = `${prefixNote}⚠️ ${labelOf(modelId)} 失败（${msg}），自动切换到 ${labelOf(nextId)}\n\n`;
+            setModel(nextId);
+            resolve(runStream(nextId, history, failedNext, note));
+            return;
+          }
+        }
+        const keep = prefixNote + acc;
+        setMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = { role: 'assistant', content: keep ? `${keep}\n\n⚠️ ${msg}` : `⚠️ ${msg}` };
+          return next;
+        });
+        resolve();
+      };
+      ch.onmessage = (m) => {
+        if (m.type === 'chunk') {
+          if (m.reasoning) reasoning += m.reasoning;
+          if (m.text) acc += m.text;
+          render();
+        } else if (m.type === 'error') {
+          resolve(failover(m.message ?? '流式请求失败'));
+        }
+        // done：无需处理（最终内容已在 chunk 中累积）
+      };
+      try {
+        await invoke('gateway_chat_stream', {
+          model: modelId,
+          messages: history.map((m) => ({ role: m.role, content: m.content })),
+          key,
+          onEvent: ch,
+        });
+      } catch (e: any) {
+        resolve(failover(e?.message ?? String(e)));
+        return;
+      }
+      resolve();
+    });
+  };
+
   const send = async () => {
     const text = input.trim();
     if (!text || !model || loading) return;
@@ -134,44 +211,8 @@ const Chat: React.FC = () => {
     setInput('');
     setLoading(true);
     try {
-      // SSE 流式：后端回环请求网关 stream:true，通过 Channel 逐 chunk 推送
-      const { Channel } = await import('@tauri-apps/api/core');
-      type Ev = { type: 'chunk' | 'done' | 'error'; text?: string; reasoning?: string; message?: string };
-      const ch = new Channel<Ev>();
-      let acc = '';        // 正文
-      let reasoning = '';  // 思考内容（reasoning_content，如 kimi-k3）
-      ch.onmessage = (m) => {
-        if (m.type === 'chunk') {
-          if (m.reasoning) reasoning += m.reasoning;
-          if (m.text) acc += m.text;
-          // 思考内容以引用块置顶展示，正文随后流式追加
-          const shown = (reasoning ? reasoning.split('\n').map((l) => `> ${l}`).join('\n') + '\n\n' : '') + acc;
-          setMessages((prev) => {
-            const next = [...prev];
-            next[next.length - 1] = { role: 'assistant', content: shown };
-            return next;
-          });
-        } else if (m.type === 'error') {
-          setMessages((prev) => {
-            const next = [...prev];
-            next[next.length - 1] = { role: 'assistant', content: `⚠️ ${m.message ?? '流式请求失败'}` };
-            return next;
-          });
-        }
-        // done：无需处理（最终内容已在 chunk 中累积）
-      };
-      await invoke('gateway_chat_stream', {
-        model,
-        messages: history.map((m) => ({ role: m.role, content: m.content })),
-        key,
-        onEvent: ch,
-      });
-    } catch (e: any) {
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: `⚠️ ${e?.message ?? String(e)}` };
-        return next;
-      });
+      // SSE 流式 + 自动续接：错误时自动换下一个候选模型（最多 3 次）
+      await runStream(model, history, new Set(), '');
     } finally { setLoading(false); }
   };
 

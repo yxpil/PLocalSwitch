@@ -7,7 +7,6 @@ export const getSystemInfo = (): Promise<SystemInfo> => invoke<SystemInfo>('get_
 
 export const loadConfig  = (): Promise<AppConfig>  => invoke<AppConfig>('load_config');
 export const saveConfig  = (cfg: AppConfig)        => invoke<AppConfig>('save_config', { cfg });
-export const resetConfig = (): Promise<AppConfig>  => invoke<AppConfig>('reset_config');
 
 // 网关服务启停控制（桌面面板总控）
 export const gatewayStatus = (): Promise<any>   => invoke<any>('gateway_status');

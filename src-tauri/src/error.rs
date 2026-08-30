@@ -17,6 +17,7 @@ pub enum ErrorLabel {
     ConnectTimeout,
     ReadTimeout,
     TlsError,
+    Http413,
     Http429,
     Auth401403,
     BadParam4xx,
@@ -39,6 +40,7 @@ impl ErrorLabel {
             ConnectTimeout        => p.connect_timeout,
             ReadTimeout           => p.read_timeout,
             TlsError              => p.tls_error,
+            Http413               => true, // 413 请求体过大/网关繁忙：与上游鉴权无关，直接换源更稳
             Http429               => p.http_429,
             Auth401403            => p.auth_401_403,
             BadParam4xx           => p.bad_param_4xx,
@@ -144,6 +146,7 @@ fn client_message_for_label(l: &ErrorLabel) -> &'static str {
     match l {
         BadParam4xx       => "Invalid request parameters.",
         Auth401403        => "Invalid gateway API key.",
+        Http413           => "Request entity too large.",
         Http429           => "Too many requests — throttle.",
         NetworkConnectRefused | DnsFail | ConnectTimeout | TlsError | ReadTimeout
                           => "All upstream endpoints unavailable.",
@@ -169,6 +172,7 @@ fn reqwest_to_label(e: &reqwest::Error) -> ErrorLabel {
     if let Some(s) = e.status() {
         match s.as_u16() {
             401 | 403 => Auth401403,
+            413 => Http413,
             429 => Http429,
             400 | 404 | 405 | 406..=499 => BadParam4xx,
             500..=599 => Upstream5xx,

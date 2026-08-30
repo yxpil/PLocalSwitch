@@ -250,7 +250,7 @@ impl crate::backend_adapters::BackendAdapter for GeminiAdapter {
             Some(ChatMessage { role: "assistant".into(), content: MessageContent::Text(text), name: None, tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) }, tool_call_id: None, extra: json!({}) })
         };
         Ok(Some(SseChunk {
-            id: Some(format!("gemini-{created}")), object: Some("chat.completion.chunk"), created: Some(created), model,
+            id: Some(format!("gemini-{created}")), object: Some("chat.completion.chunk".to_string()), created: Some(created), model,
             choices: vec![SseChoice { index: 0, delta: d, finish_reason: finish }],
             usage: None,
         }))

@@ -5,7 +5,6 @@
 use crate::config::AppConfig;
 use crate::error::{AppError, AppResult};
 use crate::services::storage;
-use std::path::Path;
 
 /// 从磁盘加载（不存在则回退 bundled 默认并落盘）
 pub fn load() -> AppResult<AppConfig> {
@@ -28,13 +27,6 @@ pub fn save(cfg: &AppConfig) -> AppResult<()> {
 pub fn reset() -> AppResult<AppConfig> {
     let cfg = crate::config::reset_to_default()?;
     Ok(cfg)
-}
-
-fn ensure_parent(path: &Path) -> AppResult<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(AppError::Io)?;
-    }
-    Ok(())
 }
 
 #[allow(dead_code)]

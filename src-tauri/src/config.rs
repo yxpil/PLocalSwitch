@@ -69,8 +69,8 @@ pub struct PrivacyConfig {
 pub struct HttpConfig {
     pub listen: String,
     #[serde(default)] pub admin_listen: Option<String>,
-    #[serde(default)] pub request_body_max_bytes: usize,
-    #[serde(default)] pub global_concurrency_limit: usize,
+    #[serde(default = "default_request_body_max_bytes")] pub request_body_max_bytes: usize,
+    #[serde(default = "default_global_concurrency_limit")] pub global_concurrency_limit: usize,
     #[serde(default)] pub per_client_key_concurrency_limit: usize,
     #[serde(default)] pub client_disconnect_aborts_upstream: bool,
     #[serde(default)] pub timeouts: TimeoutConfig,
@@ -184,10 +184,16 @@ pub struct CapabilityConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachePoolConfig {
+    /// 响应缓存总开关（v0.2.26）：重复的相同请求直接本地返回，不再打上游
+    #[serde(default = "default_cache_enabled")] pub enabled: bool,
     pub implementation: String,
+    /// 未单独配置 TTL 时的默认缓存有效期（秒）
+    #[serde(default = "default_cache_ttl_seconds")] pub default_ttl_seconds: u64,
     pub in_memory: MemCacheCfg,
     pub redis: RedisCfg,
 }
+fn default_cache_enabled() -> bool { true }
+fn default_cache_ttl_seconds() -> u64 { 86_400 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemCacheCfg {
     pub max_entries_non_stream: usize,
@@ -339,6 +345,7 @@ pub struct RetryOnCfg {
     pub connect_timeout: bool,
     pub read_timeout: bool,
     pub tls_error: bool,
+    #[serde(default)] pub http_413: bool,
     pub http_429: bool,
     pub http_5xx: bool,
     pub auth_401_403: bool,
@@ -356,6 +363,9 @@ pub struct MaskingConfig {
     pub token_show_tail: usize,
     pub url_preserve_path_segments: usize,
 }
+
+fn default_request_body_max_bytes() -> usize { 10 * 1024 * 1024 } // 10MB
+fn default_global_concurrency_limit() -> usize { 100 }
 
 impl AppConfig {
     /// 加载顺序：1) env PLS_GATEWAY_CONFIG 覆盖 → 2) ./config/gateway.yaml → 3) 默认内置

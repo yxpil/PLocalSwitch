@@ -67,13 +67,13 @@ const HeroWidget: React.FC = () => {
                  hover:-translate-y-0.5 transition-transform duration-PILL ease-PILL">
           <Icon name="network" size={16}/>{t('home.add_upstream_gateway')}
         </NavLink>
-        <NavLink to="/billing" className="inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm
+        <NavLink to="/traces" className="inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm
                  border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors">
           <Icon name="wallet" size={16}/>{t('home.view_billing')}
         </NavLink>
-        <NavLink to="/traces" className="inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm
+        <NavLink to="/chat" className="inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm
                  border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors">
-          <Icon name="git-branch" size={16}/>{t('nav.traces')}
+          <Icon name="message-circle" size={16}/>{t('nav.chat')}
         </NavLink>
         <NavLink to="/settings" className="inline-flex items-center gap-2 rounded-pill px-4 py-2 text-sm
                  border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors">

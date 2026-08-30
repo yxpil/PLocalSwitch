@@ -11,8 +11,7 @@ import type { PLSPlugin } from './index';
 
 const Dashboard   = lazy(() => import('@pages/Home'));     // / Dashboard
 const Models      = lazy(() => import('@pages/Switch'));   // /models 模型别名 + 节点路由
-const Billing     = lazy(() => import('@pages/Storage'));  // /billing 账本 + 对账报表
-const Traces      = lazy(() => import('@pages/About'));    // /traces 链路追踪查询
+const Traces      = lazy(() => import('@pages/About'));    // /traces 链路追踪 + 对账账单（v0.2.27 合并）
 const Settings    = lazy(() => import('@pages/Settings')); // /settings 设置（含网关配置）
 const Chat        = lazy(() => import('@pages/Chat'));     // /chat 聊天框（Markdown，选模型）
 
@@ -37,16 +36,15 @@ registerPlugin({
     { path: '/',         component: Suspended('page:dashboard', Dashboard), title: 'nav.dashboard', priority: 0 },
     { path: '/models',   component: Suspended('page:models',    Models),    title: 'nav.models',    priority: 1 },
     { path: '/chat',     component: Suspended('page:chat',      Chat),      title: 'nav.chat',      priority: 2 },
-    { path: '/billing',  component: Suspended('page:billing',   Billing),   title: 'nav.billing',   priority: 3 },
-    { path: '/traces',   component: Suspended('page:traces',    Traces),    title: 'nav.traces',    priority: 4 },
+    // v0.2.27：对账账单并入 /traces（tab 切换），/billing 独立路由移除
+    { path: '/traces',   component: Suspended('page:traces',    Traces),    title: 'nav.traces',    priority: 3 },
     { path: '/settings', component: Suspended('page:settings',  Settings),  title: 'nav.settings',  priority: 98 },
   ],
   sidebar: [
     { key: 'nav:dashboard', label: 'nav.dashboard', to: '/',        icon: 'layout-dashboard',  order: 0 },
     { key: 'nav:models',    label: 'nav.models',    to: '/models',  icon: 'network',           badge: 'CORE', order: 1 },
     { key: 'nav:chat',      label: 'nav.chat',      to: '/chat',    icon: 'message-circle',    order: 2 },
-    { key: 'nav:billing',   label: 'nav.billing',   to: '/billing', icon: 'receipt',           badge: 'BETA', order: 3 },
-    { key: 'nav:traces',    label: 'nav.traces',    to: '/traces',  icon: 'git-branch',        order: 4 },
+    { key: 'nav:traces',    label: 'nav.traces',    to: '/traces',  icon: 'git-branch',        order: 3 },
     { key: 'nav:settings',  label: 'nav.settings',  to: '/settings',icon: 'settings',          order: 98 },
   ],
 });

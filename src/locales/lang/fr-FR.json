@@ -90,7 +90,7 @@
     "light": "Clair",
     "dark": "Sombre",
     "compact": "Densité compacte",
-    "compact_desc": "(Interrupteur démo, pilotera plus tard le padding)",
+    "compact_desc": "Active une interface plus dense (police de base 14px) — plus de contenu à l'écran",
     "color_light": "Couleur principale claire (noir pur)",
     "color_dark": "Couleur principale sombre (blanc pur)"
   },
@@ -146,6 +146,8 @@
   },
   "traces": {
     "title": "Traces",
+    "tab_trace": "Traces",
+    "tab_billing": "Facturation",
     "description": "Trace = une requête client · SubAttempt = une tentative amont",
     "search_label": "Rechercher Trace / Model / Client",
     "search_placeholder": "Saisissez un préfixe trace_id, un nom de modèle, un extrait client...",
@@ -164,7 +166,26 @@
     "col_tokens": "Tokens",
     "export": "Exporter en Excel",
     "export_done": "{{count}} enregistrements exportés",
-    "export_fail": "Échec de l'export"
+    "export_fail": "Échec de l'export",
+    "batch_delete": "Supprimer la sélection",
+    "delete_confirm": "Supprimer {{count}} traces sélectionnées ?",
+    "select_all": "Sélectionner la page",
+    "select_row": "Sélectionner la ligne",
+    "page_size": "Par page",
+    "page_info": "Page {{page}} / {{pages}} · {{total}} au total",
+    "prev_page": "Précédent",
+    "next_page": "Suivant"
+  },
+  "errlog": {
+    "title": "Journal des erreurs",
+    "hint": "{{count}} entrées · échecs de transmission enregistrés automatiquement (identifiants masqués)",
+    "clear": "Vider",
+    "clear_confirm": "Vider tout le journal des erreurs ?",
+    "empty": "Aucune erreur pour l'instant. Les échecs de transmission seront enregistrés ici automatiquement.",
+    "col_time": "Heure",
+    "col_context": "Module",
+    "col_label": "Étiquette",
+    "col_message": "Message"
   },
   "switch": {
     "title": "Modèles & routes",
@@ -218,7 +239,6 @@
     "keys_hint": "Le descendant envoie Authorization: Bearer <key> à la connexion",
     "col_name": "Nom",
     "col_key": "Clé (masquée)",
-    "col_group": "Groupe",
     "col_rpm": "RPM",
     "col_enabled": "Activé",
     "toggle_enabled": "Basculer l'activation",
@@ -271,9 +291,7 @@
     "version": "Version",
     "request": "Requêtes",
     "uptime": "Uptime",
-    "danger_ops": "Zone de danger",
-    "danger_hint": "Réinitialiser tous les paramètres utilisateur aux valeurs par défaut (journaux et fichiers non affectés)",
-    "reset_config": "Réinitialiser la configuration"
+    "data_dir": "Répertoire de données"
   },
   "tray": {
     "show": "Afficher la fenêtre principale",

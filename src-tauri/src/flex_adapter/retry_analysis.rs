@@ -76,6 +76,7 @@ pub fn active_retry_flags(p: &crate::config::RetryOnCfg) -> Vec<&'static str> {
     if p.connect_timeout        { out.push("connect_timeout"); }
     if p.read_timeout           { out.push("read_timeout"); }
     if p.tls_error              { out.push("tls_error"); }
+    if p.http_413               { out.push("413"); }
     if p.http_429               { out.push("429"); }
     if p.http_5xx               { out.push("5xx"); }
     if p.auth_401_403           { out.push("auth_401_403"); }
@@ -93,6 +94,7 @@ pub fn triage_action(label: ErrorLabel) -> &'static str {
         NetworkConnectRefused | DnsFail | TlsError | ConnectTimeout
                           => "[ACTION] 核对 endpoint 可达性、TLS 证书、DNS；命中 autotrim.temporary_ban_seconds_when_fault 临时摘除",
         Http429           => "[ACTION] 对应节点上游限流，降低该节点权重或加大 node_group 分散比例",
+        Http413           => "[ACTION] 请求体超限或网关繁忙(413)，可放宽 request_body_max_bytes/并发，或切到支持更大请求体的节点",
         Upstream5xx       => "[ACTION] 上游提供商 5xx，如持续 3 min 以上考虑降权",
         SsePrematureClose | SseFormatInvalid | SseMidDrop
                           => "[ACTION] 检查流式上游稳定度，若同节点比例 >5% 开启临时 ban",

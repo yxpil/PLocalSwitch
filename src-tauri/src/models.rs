@@ -195,7 +195,8 @@ pub struct Usage {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SseChunk {
     pub id:      Option<String>,
-    pub object:  Option<&'static str>,
+    /// v0.2.26：&'static str → String，使 SseChunk 可 DeserializeOwned（缓存重放需要反序列化）
+    pub object:  Option<String>,
     pub created: Option<i64>,
     pub model:   Option<String>,
     pub choices: Vec<SseChoice>,
@@ -304,7 +305,7 @@ impl SseChunk {
             }
         }
         let usage = v.get("usage").and_then(|u| serde_json::from_value::<Usage>(u.clone()).ok());
-        Ok(Self { id, object: Some("chat.completion.chunk"), created, model, choices, usage })
+        Ok(Self { id, object: Some("chat.completion.chunk".to_string()), created, model, choices, usage })
     }
 }
 

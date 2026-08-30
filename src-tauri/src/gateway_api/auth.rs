@@ -1,5 +1,4 @@
 //! 网关自有 API Key 校验 + 提取 client_key 实体
-use crate::billing::client_key_mgr::ClientKeyRegistry;
 use crate::config::ClientKey;
 use crate::state::AppState;
 use axum::http::request::Parts;

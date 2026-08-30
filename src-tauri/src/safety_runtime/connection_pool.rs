@@ -1,5 +1,5 @@
 //! 按节点组隔离的 reqwest::Client 池（超时/连接上限独立）
-use crate::config::{ConnPoolCfg, HttpConfig, UpstreamNode};
+use crate::config::{HttpConfig, UpstreamNode};
 #[allow(unused_imports)] use crate::config::TimeoutConfig;
 use dashmap::DashMap;
 pub struct HttpPool { pub by_node: DashMap<String, reqwest::Client> }

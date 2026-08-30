@@ -113,6 +113,7 @@ pub fn run_app() -> AppResult<()> {
 
         // 追踪/账本建表（幂等，缺表则补充）
         services::trace_store::init_schema(&app_state).await;
+        services::error_logger::init_schema(&app_state).await;
 
         // 预填“模型→上游组”目录（别名真实模型），供真实模型名路由；list_upstream_models 会再补充上游真实模型
         for a in app_state.cfg.model_aliases.iter() {
@@ -252,7 +253,6 @@ pub fn run_app() -> AppResult<()> {
                     commands::system::get_system_info,
                     commands::config::load_config,
                     commands::config::save_config,
-                    commands::config::reset_config,
                     commands::config::get_proxy_settings,
                     commands::config::set_proxy_settings,
                     commands::storage::list_files,
@@ -265,7 +265,11 @@ pub fn run_app() -> AppResult<()> {
                     commands::gateway::gateway_auto_restart,
                     commands::tray::tray_action,
                     commands::system::list_traces,
+                    commands::system::delete_traces,
                     commands::system::export_traces_excel,
+                    commands::system::list_error_logs,
+                    commands::system::clear_error_logs,
+                    commands::system::delete_error_logs,
                     commands::system::billing_summary,
                     commands::system::gateway_chat,
                     commands::system::gateway_chat_stream,

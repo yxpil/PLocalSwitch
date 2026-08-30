@@ -36,6 +36,7 @@ async fn execute_one(
         let body_txt = resp.text().await.unwrap_or_default();
         let label = match status.as_u16() {
             401 | 403 => ErrorLabel::Auth401403,
+            413        => ErrorLabel::Http413,
             429        => ErrorLabel::Http429,
             400 | 404 | 405 => ErrorLabel::BadParam4xx,
             406..=499  => ErrorLabel::BadParam4xx,
@@ -98,7 +99,7 @@ pub async fn attempt_chain(
     }
 
     // ------- 非流式：真实多轮候选执行（自适应：上游「协议不支持」时自动换下一个候选协议）-------
-    'outer: for c in candidates {
+    for c in candidates {
         if subs.len() as u32 >= max_subs { break; }
         // 关键：每个候选必须用它自己的 real_model（AUTOMODE/多源同名场景下各候选模型名不同，
         // 若沿用第一个候选的模型名，后续候选必然 400/404）
@@ -128,19 +129,17 @@ pub async fn attempt_chain(
                     let lbl = e.label();
                     let status = sub.http_status_code;
                     let mismatch = protocol_mismatch(&e);
-                    // 404 = 「该上游没有这个模型/路径」→ 换下一个候选继续试，不算终态；
-                    // 其余 4xx（参数错）与 401/403（鉴权错）才是整链终止。
-                    let not_found = status == Some(404);
-                    let terminal = !mismatch && !not_found
-                        && matches!(lbl, ErrorLabel::BadParam4xx | ErrorLabel::Auth401403);
-                    sub.finish_fail(lbl, status, if terminal { SubAttemptOutcome::FailedTerminal } else { SubAttemptOutcome::FailedRetried });
+                    // v0.2.25：与流式路径（v0.2.18）对齐 —— 任何错误都换下一候选续试，不再整链终止。
+                    // 理由：AUTOMODE 候选是不同上游（各自 key/模型），A 家 400「无此模型」/401「key 失效」
+                    // 不代表 B 家也失败；此前把 400/401/403 判终态导致「错误后不自动切换」。
+                    // 整链仅受 max_subs（24~48）硬上限约束，用尽才返回 AllFailed。
+                    sub.finish_fail(lbl, status, SubAttemptOutcome::FailedRetried);
                     subs.push(sub);
                     last_err = Some(e);
                     if mismatch {
-                        continue; // 协议不支持 → 换下一个候选协议
+                        continue; // 协议不支持 → 换下一个候选协议（同节点）
                     }
-                    if terminal { break 'outer; } // 客户端非法/鉴权失败 → 整链终止（不浪费重试配额）
-                    break; // 其它（404/5xx/网络/解析）→ 交给下一个候选节点
+                    break; // 其它（400/404/401/403/5xx/网络/解析）→ 换下一个候选节点
                 }
             }
         }

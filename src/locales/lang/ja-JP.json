@@ -90,7 +90,7 @@
     "light": "ライト",
     "dark": "ダーク",
     "compact": "コンパクト密度",
-    "compact_desc": "（デモスイッチ、将来 padding に連動）",
+    "compact_desc": "オンにすると UI 密度が全体的に締まり（ルートフォント 14px）、同画面により多くの内容を表示できます",
     "color_light": "ライト主色（純黒）",
     "color_dark": "ダーク主色（純白）"
   },
@@ -146,6 +146,8 @@
   },
   "traces": {
     "title": "トレース",
+    "tab_trace": "トレース",
+    "tab_billing": "請求対照",
     "description": "Trace = 1 回のクライアントリクエスト・SubAttempt = 1 回の上流試行",
     "search_label": "Trace / Model / Client を検索",
     "search_placeholder": "trace_id プレフィックス、モデル名、client 断片を入力...",
@@ -164,7 +166,26 @@
     "col_tokens": "トークン",
     "export": "Excel エクスポート",
     "export_done": "{{count}} 件をエクスポートしました",
-    "export_fail": "エクスポート失敗"
+    "export_fail": "エクスポート失敗",
+    "batch_delete": "選択を削除",
+    "delete_confirm": "選択した {{count}} 件のトレースを削除しますか？",
+    "select_all": "このページを選択",
+    "select_row": "この行を選択",
+    "page_size": "表示件数",
+    "page_info": "{{page}} / {{pages}} ページ · 全 {{total}} 件",
+    "prev_page": "前のページ",
+    "next_page": "次のページ"
+  },
+  "errlog": {
+    "title": "エラーログ",
+    "hint": "全 {{count}} 件 · 転送失敗を自動記録（認証情報は自動マスク）",
+    "clear": "クリア",
+    "clear_confirm": "すべてのエラーログをクリアしますか？",
+    "empty": "エラー記録はまだありません。転送失敗時に自動で記録されます。",
+    "col_time": "時刻",
+    "col_context": "モジュール",
+    "col_label": "エラータグ",
+    "col_message": "内容"
   },
   "switch": {
     "title": "モデルとルーティング",
@@ -218,7 +239,6 @@
     "keys_hint": "下流は接続時に Authorization: Bearer <key> を送信",
     "col_name": "名称",
     "col_key": "キー（マスク）",
-    "col_group": "グループ",
     "col_rpm": "RPM",
     "col_enabled": "有効",
     "toggle_enabled": "有効を切り替え",
@@ -271,9 +291,7 @@
     "version": "バージョン",
     "request": "リクエスト",
     "uptime": "稼働時間",
-    "danger_ops": "危険な操作",
-    "danger_hint": "全ユーザー設定をデフォルトにリセット（ログとファイルは影響なし）",
-    "reset_config": "設定をリセット"
+    "data_dir": "データディレクトリ"
   },
   "tray": {
     "show": "メインウィンドウを表示",

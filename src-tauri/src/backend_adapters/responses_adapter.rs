@@ -220,7 +220,7 @@ impl crate::backend_adapters::BackendAdapter for ResponsesAdapter {
                 let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("resp").to_string();
                 let model = v.pointer("/response/model").and_then(|x| x.as_str()).unwrap_or("").to_string();
                 Ok(Some(SseChunk {
-                    id: Some(id), object: Some("chat.completion.chunk"), created: Some(created), model: Some(model),
+                    id: Some(id), object: Some("chat.completion.chunk".to_string()), created: Some(created), model: Some(model),
                     choices: vec![SseChoice { index: 0, delta: Some(ChatMessage { role: "assistant".into(), content: MessageContent::Text(String::new()), name: None, tool_calls: None, tool_call_id: None, extra: json!({}) }), finish_reason: None }],
                     usage: None,
                 }))
@@ -228,7 +228,7 @@ impl crate::backend_adapters::BackendAdapter for ResponsesAdapter {
             "response.output_text.delta" => {
                 let text = v.get("delta").and_then(|x| x.as_str()).unwrap_or("").to_string();
                 let d = Some(ChatMessage { role: "assistant".into(), content: MessageContent::Text(text), name: None, tool_calls: None, tool_call_id: None, extra: json!({}) });
-                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: d, finish_reason: None }], usage: None }))
+                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: d, finish_reason: None }], usage: None }))
             }
             // function_call 输出项开始 → tool_call 头部（id + name + 空 arguments）
             "response.output_item.added" => {
@@ -246,7 +246,7 @@ impl crate::backend_adapters::BackendAdapter for ResponsesAdapter {
                     }),
                 };
                 let d = ChatMessage { role: "assistant".into(), content: MessageContent::Text(String::new()), name: None, tool_calls: Some(vec![tc]), tool_call_id: None, extra: json!({}) };
-                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }))
+                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }))
             }
             // function_call 参数增量
             "response.function_call_arguments.delta" => {
@@ -255,7 +255,7 @@ impl crate::backend_adapters::BackendAdapter for ResponsesAdapter {
                 let piece = v.get("delta").and_then(|x| x.as_str()).unwrap_or("").to_string();
                 let tc = ToolCall { id: None, kind: None, index: Some(seq), function: Some(ToolCallFn { name: None, arguments: Some(piece) }) };
                 let d = ChatMessage { role: "assistant".into(), content: MessageContent::Text(String::new()), name: None, tool_calls: Some(vec![tc]), tool_call_id: None, extra: json!({}) };
-                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }))
+                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }))
             }
             "response.completed" => {
                 let status = v.pointer("/response/status").and_then(|x| x.as_str()).unwrap_or("completed");
@@ -265,7 +265,7 @@ impl crate::backend_adapters::BackendAdapter for ResponsesAdapter {
                     .map(|arr| arr.iter().any(|it| it.get("type").and_then(|x| x.as_str()) == Some("function_call")))
                     .unwrap_or(false);
                 let finish = if has_fc { Some("tool_calls".to_string()) } else { stop_reason_map(status) };
-                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: None, finish_reason: finish }], usage: io }))
+                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: None, finish_reason: finish }], usage: io }))
             }
             _ => Ok(None),
         }

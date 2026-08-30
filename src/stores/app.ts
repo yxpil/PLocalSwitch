@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { AppConfig, AppInfo, SystemInfo, DeepPartial } from '@types';
 import { useLogger } from '@logger/index';
 import {
-  getAppInfo, getSystemInfo, ping, loadConfig, saveConfig, resetConfig as cfgReset,
+  getAppInfo, getSystemInfo, ping, loadConfig, saveConfig,
 } from '@commands/app';
 import { setLocale } from '@i18n/index';
 
@@ -20,7 +20,6 @@ interface AppState {
   ping: (msg?: string) => Promise<string>;
   updateConfig: (patch: DeepPartial<AppConfig>) => Promise<void>;
   setLocale: (loc: string) => Promise<void>;
-  resetConfig: () => Promise<void>;
   refreshSystemInfo: () => Promise<void>;
 }
 
@@ -106,17 +105,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async setLocale(loc: string) {
     await get().updateConfig({ locale: loc });
-  },
-
-  async resetConfig() {
-    try {
-      const cfg = await cfgReset();
-      set({ config: cfg });
-      try { await setLocale(cfg.locale); } catch { /* noop */ }
-      log.info('配置已重置为默认值');
-    } catch (e: any) {
-      set({ error: String(e?.message || e) });
-    }
   },
 
   async refreshSystemInfo() {

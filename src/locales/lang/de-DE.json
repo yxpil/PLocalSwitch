@@ -90,7 +90,7 @@
     "light": "Hell",
     "dark": "Dunkel",
     "compact": "Kompakte Dichte",
-    "compact_desc": "(Demo-Schalter, steuert später das Padding)",
+    "compact_desc": "Aktiviert eine kompaktere Oberfläche (Basischriftgröße 14px) — mehr Inhalt pro Bildschirm",
     "color_light": "Helle Primärfarbe (reines Schwarz)",
     "color_dark": "Dunkle Primärfarbe (reines Weiß)"
   },
@@ -146,6 +146,8 @@
   },
   "traces": {
     "title": "Traces",
+    "tab_trace": "Traces",
+    "tab_billing": "Abrechnung",
     "description": "Trace = eine Client-Anfrage · SubAttempt = ein Upstream-Versuch",
     "search_label": "Trace / Model / Client suchen",
     "search_placeholder": "trace_id-Präfix, Modellname, Client-Ausschnitt eingeben...",
@@ -164,7 +166,26 @@
     "col_tokens": "Tokens",
     "export": "Excel exportieren",
     "export_done": "{{count}} Einträge exportiert",
-    "export_fail": "Export fehlgeschlagen"
+    "export_fail": "Export fehlgeschlagen",
+    "batch_delete": "Auswahl löschen",
+    "delete_confirm": "{{count}} ausgewählte Traces löschen?",
+    "select_all": "Seite auswählen",
+    "select_row": "Zeile auswählen",
+    "page_size": "Pro Seite",
+    "page_info": "Seite {{page}} / {{pages}} · {{total}} gesamt",
+    "prev_page": "Zurück",
+    "next_page": "Weiter"
+  },
+  "errlog": {
+    "title": "Fehlerprotokoll",
+    "hint": "{{count}} Einträge · Weiterleitungsfehler werden automatisch aufgezeichnet (Zugangsdaten maskiert)",
+    "clear": "Leeren",
+    "clear_confirm": "Gesamtes Fehlerprotokoll leeren?",
+    "empty": "Noch keine Fehler. Weiterleitungsfehler werden hier automatisch aufgezeichnet.",
+    "col_time": "Zeit",
+    "col_context": "Modul",
+    "col_label": "Label",
+    "col_message": "Meldung"
   },
   "switch": {
     "title": "Modelle & Routen",
@@ -218,7 +239,6 @@
     "keys_hint": "Downstream sendet Authorization: Bearer <key> bei Verbindung",
     "col_name": "Name",
     "col_key": "Schlüssel (maskiert)",
-    "col_group": "Gruppe",
     "col_rpm": "RPM",
     "col_enabled": "Aktiviert",
     "toggle_enabled": "Aktivierung umschalten",
@@ -271,9 +291,7 @@
     "version": "Version",
     "request": "Anfragen",
     "uptime": "Laufzeit",
-    "danger_ops": "Gefahrenzone",
-    "danger_hint": "Alle Benutzereinstellungen auf Standardwerte zurücksetzen (Logs und Dateien bleiben unberührt)",
-    "reset_config": "Einstellungen zurücksetzen"
+    "data_dir": "Datenverzeichnis"
   },
   "tray": {
     "show": "Hauptfenster anzeigen",

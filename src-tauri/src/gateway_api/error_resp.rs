@@ -9,6 +9,7 @@ impl IntoResponse for AppErrorResponse {
             ErrorLabel::BadParam4xx       => 400,
             ErrorLabel::Auth401403        => 401,
             ErrorLabel::Http429           => 429,
+            ErrorLabel::Http413           => 413,
             ErrorLabel::Upstream5xx       => 502,
             ErrorLabel::NetworkConnectRefused | ErrorLabel::DnsFail | ErrorLabel::TlsError
                                           => 503,

@@ -90,7 +90,7 @@
     "light": "라이트",
     "dark": "다크",
     "compact": "고밀도",
-    "compact_desc": "(데모 스위치, 향후 padding 연동)",
+    "compact_desc": "활성화하면 UI 밀도가 전반적으로 조여져(루트 글꼴 14px) 한 화면에 더 많은 내용을 표시합니다",
     "color_light": "라이트 주색(순흑)",
     "color_dark": "다크 주색(순백)"
   },
@@ -146,6 +146,8 @@
   },
   "traces": {
     "title": "추적",
+    "tab_trace": "추적",
+    "tab_billing": "정산",
     "description": "Trace = 1회 클라이언트 요청 · SubAttempt = 1회 업스트림 시도",
     "search_label": "Trace / Model / Client 검색",
     "search_placeholder": "trace_id 접두사, 모델명, client 조각 입력...",
@@ -164,7 +166,26 @@
     "col_tokens": "토큰",
     "export": "Excel 내보내기",
     "export_done": "{{count}}개 기록을 내보냈습니다",
-    "export_fail": "내보내기 실패"
+    "export_fail": "내보내기 실패",
+    "batch_delete": "선택 삭제",
+    "delete_confirm": "선택한 {{count}}개의 Trace를 삭제하시겠습니까?",
+    "select_all": "이 페이지 선택",
+    "select_row": "이 행 선택",
+    "page_size": "페이지당",
+    "page_info": "{{page}} / {{pages}} 페이지 · 총 {{total}}개",
+    "prev_page": "이전 페이지",
+    "next_page": "다음 페이지"
+  },
+  "errlog": {
+    "title": "오류 로그",
+    "hint": "총 {{count}}개 · 전달 실패 자동 기록(자격 증명 자동 마스킹)",
+    "clear": "비우기",
+    "clear_confirm": "모든 오류 로그를 비우시겠습니까?",
+    "empty": "아직 오류 기록이 없습니다. 전달 실패 시 자동으로 기록됩니다.",
+    "col_time": "시간",
+    "col_context": "모듈",
+    "col_label": "오류 태그",
+    "col_message": "내용"
   },
   "switch": {
     "title": "모델 및 라우팅",
@@ -218,7 +239,6 @@
     "keys_hint": "다운스트림은 접속 시 Authorization: Bearer <key> 전송",
     "col_name": "이름",
     "col_key": "키(마스킹)",
-    "col_group": "그룹",
     "col_rpm": "RPM",
     "col_enabled": "사용",
     "toggle_enabled": "사용 전환",
@@ -271,9 +291,7 @@
     "version": "버전",
     "request": "요청",
     "uptime": "가동 시간",
-    "danger_ops": "위험 작업",
-    "danger_hint": "모든 사용자 설정을 기본값으로 초기화(로그와 파일은 영향 없음)",
-    "reset_config": "설정 초기화"
+    "data_dir": "데이터 디렉터리"
   },
   "tray": {
     "show": "메인 창 표시",

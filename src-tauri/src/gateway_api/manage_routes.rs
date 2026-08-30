@@ -13,16 +13,15 @@
 //!  · 缓存：POST   /manage/cache/purge?model=
 //!          GET    /manage/cache/stats
 //! =============================================================
-use crate::error::{AppError, AppResult, ErrorLabel};
+use crate::error::AppError;
 use crate::gateway_api::auth::AuthedClient;
 use crate::gateway_api::error_resp::AppErrorResponse;
 use crate::state::AppState;
+use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Json, Response};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use serde::Deserialize;
 
 #[cfg(feature = "desktop-shell")]
 use tauri::Manager;

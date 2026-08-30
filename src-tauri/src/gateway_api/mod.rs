@@ -246,7 +246,6 @@ pub fn build_router(app: Arc<AppState>) -> Router {
 
     // gw: CORS 从 gateway.yaml cors 段读取（支持 allow_credentials；origins 含 * 时回退 Any）
     let cors_layer   = build_cors_layer(&app.cfg_swap.load().cors);
-    let sensitive_request = axum::http::HeaderMap::new(); // 在 auth 层单独 mask：Authorization / x-api-key / x-api-token
 
     Router::new()
         .nest("/v1",     openai_api.merge(inbound_api)) // /v1/* 静态优先，wildcard 兜底

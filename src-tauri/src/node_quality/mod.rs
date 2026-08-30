@@ -14,7 +14,6 @@ pub mod sample_buffer;       // 环形定长样本缓冲（DashMap<String, RingB
 pub mod label_classifier;    // 根据分数输出 优秀/良好/一般/较差/故障 5 档
 pub mod autotrim;            // 低质量自动降权 / 临时摘除（可在配置关闭）
 
-use crate::error::AppResult;
 use crate::state::AppState;
 use std::sync::Arc;
 

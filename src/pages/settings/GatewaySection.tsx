@@ -43,6 +43,8 @@ const GatewaySection: React.FC = () => {
   const [aliases, setAliases] = useState<any[]>([]);
   const [aliasCount, setAliasCount] = useState(0);
   const [automode, setAutomode] = useState(true);
+  const [cacheEnabled, setCacheEnabled] = useState(true);
+  const [cacheTtlHours, setCacheTtlHours] = useState(24);
   const [preferFree, setPreferFree] = useState(false);
   const [preferNonQuant, setPreferNonQuant] = useState(false);
   const [preferLarge, setPreferLarge] = useState(false);
@@ -53,6 +55,9 @@ const GatewaySection: React.FC = () => {
     try {
       const cfg: any = await invoke('load_config');
       setAutomode(cfg?.automode?.enabled !== false);
+      // 响应缓存（v0.2.26）：默认开启，TTL 按小时展示
+      setCacheEnabled(cfg?.cache_pool?.enabled !== false);
+      setCacheTtlHours(Math.max(1, Math.round((cfg?.cache_pool?.default_ttl_seconds ?? 86400) / 3600)));
       setPreferFree(cfg?.automode?.prefer_free === true);
       setPreferNonQuant(cfg?.automode?.prefer_non_quant === true);
       setPreferLarge(cfg?.automode?.prefer_large === true);
@@ -127,6 +132,21 @@ const GatewaySection: React.FC = () => {
       cfg.automode = { ...(cfg.automode ?? {}), enabled: v };
       await invoke('save_config', { cfg });
     } catch { /* 静默 */ }
+  };
+
+  /* 响应缓存开关 / TTL（v0.2.26）：重复请求本地直返，热更新即时生效 */
+  const setCache = async (field: string, v: any) => {
+    try {
+      const cfg: any = await invoke('load_config');
+      cfg.cache_pool = { ...(cfg.cache_pool ?? {}), [field]: v };
+      await invoke('save_config', { cfg });
+    } catch { /* 静默 */ }
+  };
+  const toggleCache = async (v: boolean) => { setCacheEnabled(v); await setCache('enabled', v); };
+  const changeCacheTtl = async (hours: number) => {
+    const h = Math.max(1, Math.min(24 * 30, Math.round(hours) || 1));
+    setCacheTtlHours(h);
+    await setCache('default_ttl_seconds', h * 3600);
   };
 
   /* AUTOMODE 排序策略字段统一保存：prefer_free / prefer_non_quant / prefer_large / deprioritize_small / strategy */
@@ -294,6 +314,36 @@ const GatewaySection: React.FC = () => {
             <div className="shrink-0">
               <PillSwitch size="sm" checked={depSmall} onChange={toggleDepSmall} label="" />
             </div>
+          </div>
+        </div>
+      </PillCard>
+
+      {/* 响应缓存（v0.2.26）：重复请求本地直返 */}
+      <PillCard padding="md" hoverable={false}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="font-semibold flex items-center gap-2">
+              <Icon name="database" size={15} />
+              响应缓存（重复请求本地直返）
+              <PillBadge size="sm">CACHE</PillBadge>
+            </div>
+            <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
+              开启后，相同「模型 + 消息 + 参数」的重复请求直接由本地缓存返回，不再打上游 —— 省配额、秒回。带工具调用/图片的请求、出错中断的流自动跳过缓存。
+            </p>
+          </div>
+          <div className="shrink-0">
+            <PillSwitch size="sm" checked={cacheEnabled} onChange={toggleCache} label="" />
+          </div>
+        </div>
+        <div className="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-900 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="p-field">
+            <label className="p-label">缓存有效期（小时）</label>
+            <input type="number" min={1} max={720} className="pill-input bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+              value={cacheTtlHours} disabled={!cacheEnabled}
+              onChange={(e) => changeCacheTtl(Number(e.target.value))} />
+          </div>
+          <div className="text-[11px] text-neutral-500 self-end pb-2 leading-relaxed">
+            缓存上限：非流式 8192 条 / 流式 4096 条，单条最大 4MB，超限自动淘汰最旧记录。保存即热生效。
           </div>
         </div>
       </PillCard>

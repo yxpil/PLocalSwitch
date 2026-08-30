@@ -154,3 +154,7 @@
 @keyframes fadeIn   { from { opacity: 0 } to { opacity: 1 } }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes popIn    { 0% { opacity: 0; transform: scale(0.94) } 100% { opacity: 1; transform: scale(1) } }
+
+/* ========== 8. 紧凑密度（设置 → 外观；真实生效，持久化 localStorage） ========== */
+/* 根字号 16px → 14px：Tailwind 全部 rem 工具类（间距/圆角/字号）等比收紧，全局密度下降 */
+html.compact { font-size: 14px; }

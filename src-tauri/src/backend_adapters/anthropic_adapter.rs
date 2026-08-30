@@ -256,7 +256,7 @@ impl crate::backend_adapters::BackendAdapter for AnthropicAdapter {
                 self.last_prompt.store(prompt, std::sync::atomic::Ordering::Relaxed);
                 let usage = Some(Usage { prompt_tokens: prompt, completion_tokens: 0, total_tokens: prompt, extra: json!({}) });
                 Ok(Some(SseChunk {
-                    id: Some(id), object: Some("chat.completion.chunk"), created: Some(created), model: Some(model),
+                    id: Some(id), object: Some("chat.completion.chunk".to_string()), created: Some(created), model: Some(model),
                     choices: vec![SseChoice { index: 0, delta: Some(ChatMessage { role, content: MessageContent::Text(String::new()), name: None, tool_calls: None, tool_call_id: None, extra: json!({}) }), finish_reason: None }],
                     usage,
                 }))
@@ -284,7 +284,7 @@ impl crate::backend_adapters::BackendAdapter for AnthropicAdapter {
                     }),
                 };
                 let d = ChatMessage { role: "assistant".into(), content: MessageContent::Text(String::new()), name: None, tool_calls: Some(vec![tc]), tool_call_id: None, extra: json!({}) };
-                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }))
+                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }))
             }
             "content_block_delta" => {
                 let delta = v.get("delta").cloned().unwrap_or_else(|| json!({}));
@@ -297,20 +297,20 @@ impl crate::backend_adapters::BackendAdapter for AnthropicAdapter {
                     if piece.is_empty() { return Ok(None); }
                     let tc = ToolCall { id: None, kind: None, index: Some(seq), function: Some(ToolCallFn { name: None, arguments: Some(piece.to_string()) }) };
                     let d = ChatMessage { role: "assistant".into(), content: MessageContent::Text(String::new()), name: None, tool_calls: Some(vec![tc]), tool_call_id: None, extra: json!({}) };
-                    return Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }));
+                    return Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }));
                 }
                 if dtype == "thinking_delta" {
                     // 思维链增量 → 透传为 reasoning_content（DeepSeek 风格扩展字段，extra flatten）
                     let th = delta.get("thinking").and_then(|x| x.as_str()).unwrap_or("");
                     if th.is_empty() { return Ok(None); }
                     let d = ChatMessage { role: "assistant".into(), content: MessageContent::Text(String::new()), name: None, tool_calls: None, tool_call_id: None, extra: json!({"reasoning_content": th}) };
-                    return Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }));
+                    return Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: Some(d), finish_reason: None }], usage: None }));
                 }
                 // signature_delta / citations_delta 等其他增量类型：仅提取 text（有则转发，无则丢弃空 chunk）
                 let text = delta.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string();
                 if text.is_empty() { return Ok(None); }
                 let d = Some(ChatMessage { role: "assistant".into(), content: MessageContent::Text(text), name: None, tool_calls: None, tool_call_id: None, extra: json!({}) });
-                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: d, finish_reason: None }], usage: None }))
+                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: d, finish_reason: None }], usage: None }))
             }
             "message_delta" => {
                 let sr = v.pointer("/delta/stop_reason").and_then(|x| x.as_str()).unwrap_or("end_turn");
@@ -318,7 +318,7 @@ impl crate::backend_adapters::BackendAdapter for AnthropicAdapter {
                 let p = self.last_prompt.load(std::sync::atomic::Ordering::Relaxed);
                 let o = v.pointer("/usage/output_tokens").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
                 let usage = Some(Usage { prompt_tokens: p, completion_tokens: o, total_tokens: p + o, extra: json!({}) });
-                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk"), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: None, finish_reason: stop_reason_map(sr) }], usage }))
+                Ok(Some(SseChunk { id: None, object: Some("chat.completion.chunk".to_string()), created: Some(created), model: None, choices: vec![SseChoice { index: 0, delta: None, finish_reason: stop_reason_map(sr) }], usage }))
             }
             "message_stop" | "content_block_stop" | "ping" => Ok(None),
             "error" => {

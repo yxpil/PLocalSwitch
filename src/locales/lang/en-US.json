@@ -90,7 +90,7 @@
     "light": "Light",
     "dark": "Dark",
     "compact": "Compact density",
-    "compact_desc": "(Demo switch, will drive padding later)",
+    "compact_desc": "When enabled, UI density tightens globally (root font 14px), fitting more content on screen",
     "color_light": "Light primary (pure black)",
     "color_dark": "Dark primary (pure white)"
   },
@@ -146,6 +146,8 @@
   },
   "traces": {
     "title": "Traces",
+    "tab_trace": "Traces",
+    "tab_billing": "Billing",
     "description": "Trace = one client request · SubAttempt = one upstream attempt",
     "search_label": "Search Trace / Model / Client",
     "search_placeholder": "Enter trace_id prefix, model name, client snippet...",
@@ -164,7 +166,26 @@
     "col_tokens": "Tokens",
     "export": "Export Excel",
     "export_done": "Exported {{count}} records",
-    "export_fail": "Export failed"
+    "export_fail": "Export failed",
+    "batch_delete": "Delete Selected",
+    "delete_confirm": "Delete {{count}} selected traces?",
+    "select_all": "Select page",
+    "select_row": "Select row",
+    "page_size": "Per page",
+    "page_info": "Page {{page}} / {{pages}} · {{total}} total",
+    "prev_page": "Previous page",
+    "next_page": "Next page"
+  },
+  "errlog": {
+    "title": "Error Log",
+    "hint": "{{count}} entries · forwarding failures recorded automatically (credentials masked)",
+    "clear": "Clear",
+    "clear_confirm": "Clear all error logs?",
+    "empty": "No errors yet. Forwarding failures will be recorded here automatically.",
+    "col_time": "Time",
+    "col_context": "Module",
+    "col_label": "Label",
+    "col_message": "Message"
   },
   "switch": {
     "title": "Models & Routes",
@@ -227,7 +248,6 @@
     "keys_hint": "Downstream sends Authorization: Bearer <key> when connecting",
     "col_name": "Name",
     "col_key": "Key (masked)",
-    "col_group": "Group",
     "col_rpm": "RPM",
     "col_enabled": "Enabled",
     "toggle_enabled": "Toggle enabled",
@@ -280,9 +300,7 @@
     "version": "Version",
     "request": "Requests",
     "uptime": "Uptime",
-    "danger_ops": "Danger zone",
-    "danger_hint": "Reset all user config to defaults (logs and files are unaffected)",
-    "reset_config": "Reset config"
+    "data_dir": "Data directory"
   },
   "tray": {
     "show": "Show main window",
