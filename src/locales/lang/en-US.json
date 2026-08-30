@@ -158,9 +158,13 @@
     "no_data_hint": "After adding an upstream gateway and forwarding a request, traces will appear here.",
     "col_id": "Trace ID",
     "col_model": "Model",
+    "col_upstream": "Upstream",
     "col_status": "Status",
     "col_latency": "Latency",
-    "col_tokens": "Tokens"
+    "col_tokens": "Tokens",
+    "export": "Export Excel",
+    "export_done": "Exported {{count}} records",
+    "export_fail": "Export failed"
   },
   "switch": {
     "title": "Models & Routes",

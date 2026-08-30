@@ -158,9 +158,13 @@
     "no_data_hint": "添加上游网关并转发一次请求后，这里会自动显示 Trace。",
     "col_id": "Trace ID",
     "col_model": "模型",
+    "col_upstream": "上游",
     "col_status": "状态",
     "col_latency": "延时",
-    "col_tokens": "Tokens"
+    "col_tokens": "Tokens",
+    "export": "导出 Excel",
+    "export_done": "已导出 {{count}} 条记录",
+    "export_fail": "导出失败"
   },
   "switch": {
     "title": "模型与路由",

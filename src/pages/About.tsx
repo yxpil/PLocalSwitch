@@ -12,10 +12,12 @@ import PillBadge from '@components/ui/PillBadge';
 import PillInput from '@components/ui/PillInput';
 import Icon from '@icons/index';
 import { invoke } from '@commands/index';
+import { save } from '@tauri-apps/plugin-dialog';
 
 interface TraceRow {
   id: string;
   model: string;
+  upstream: string;
   status: string;
   latency_ms: number;
   tokens: number;
@@ -38,7 +40,8 @@ function fmtTs(v: any): string {
 function normRow(r: any): TraceRow {
   return {
     id: r.trace_id ?? r.id ?? r.traceId ?? '',
-    model: r.model ?? r.resolved_model ?? '',
+    model: r.resolved_model || r.model || '',
+    upstream: r.served_host || '',
     status: String(r.status ?? r.final_status_code ?? ''),
     latency_ms: r.latency_ms ?? r.latency ?? 0,
     tokens: r.tokens ?? r.billed_total ?? 0,
@@ -70,6 +73,24 @@ const Traces: React.FC = () => {
   const [traces, setTraces] = useState<TraceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
+
+  const exportExcel = async () => {
+    try {
+      setExportMsg(null);
+      const path = await save({
+        title: t('traces.export'),
+        defaultPath: `PLocalSwitch-traces-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+      });
+      if (!path) return;
+      const r: any = await invoke('export_traces_excel', { path });
+      const n = typeof r === 'number' ? r : (r?.data ?? r?.count ?? 0);
+      setExportMsg(t('traces.export_done', { count: n }));
+    } catch (e) {
+      setExportMsg(t('traces.export_fail') + ': ' + (e instanceof Error ? e.message : String(e)));
+    }
+  };
 
   const load = async () => {
     try {
@@ -116,12 +137,18 @@ const Traces: React.FC = () => {
               prefix={<Icon name="search" size={14} />}
             />
           </div>
-          <div className="md:col-span-4 flex items-end">
-            <PillButton size="md" variant="soft" leftIcon={<Icon name="refresh-cw" size={16} />} onClick={load} className="w-full">
+          <div className="md:col-span-4 flex items-end gap-2">
+            <PillButton size="md" variant="soft" leftIcon={<Icon name="refresh-cw" size={16} />} onClick={load} className="flex-1">
               {t('traces.refresh')}
+            </PillButton>
+            <PillButton size="md" variant="primary" leftIcon={<Icon name="download" size={16} />} onClick={exportExcel} className="flex-1">
+              {t('traces.export')}
             </PillButton>
           </div>
         </div>
+        {exportMsg && (
+          <div className="mt-2 text-[11px] text-neutral-500">{exportMsg}</div>
+        )}
       </PillCard>
 
       {/* Trace 表格 */}
@@ -158,8 +185,9 @@ const Traces: React.FC = () => {
                             bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200/70 dark:border-neutral-800/70">
               <div className="col-span-4">{t('traces.col_id')}</div>
               <div className="col-span-3">{t('traces.col_model')}</div>
-              <div className="col-span-2 text-center">{t('traces.col_status')}</div>
-              <div className="col-span-2 text-right">{t('traces.col_latency')}</div>
+              <div className="col-span-2">{t('traces.col_upstream')}</div>
+              <div className="col-span-1 text-center">{t('traces.col_status')}</div>
+              <div className="col-span-1 text-right">{t('traces.col_latency')}</div>
               <div className="col-span-1 text-right">{t('traces.col_tokens')}</div>
             </div>
             {filtered.map((t) => (
@@ -171,10 +199,11 @@ const Traces: React.FC = () => {
                   <div className="text-[10px] text-neutral-500 tabular-nums mt-0.5">{t.ts}</div>
                 </div>
                 <div className="col-span-3 font-mono truncate min-w-0">{t.model}</div>
-                <div className="col-span-2 text-center">
+                <div className="col-span-2 font-mono truncate min-w-0 text-neutral-500">{t.upstream || '—'}</div>
+                <div className="col-span-1 text-center">
                   <PillBadge variant={statusKind(t.status)} size="sm">{t.status || '—'}</PillBadge>
                 </div>
-                <div className="col-span-2 text-right tabular-nums">{Number(t.latency_ms) || 0}ms</div>
+                <div className="col-span-1 text-right tabular-nums">{Number(t.latency_ms) || 0}ms</div>
                 <div className="col-span-1 text-right tabular-nums">{fmtT(t.tokens)}</div>
               </div>
             ))}

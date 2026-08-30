@@ -84,6 +84,8 @@ pub struct GatewayTrace {
     pub model_alias:           String,
     pub resolved_model:        String,
     pub node_group:            String,
+    /// 实际服务本次请求的上游 host（成功时写入；链路追踪展示用，已脱敏只有域名）
+    pub served_host:           String,
     pub is_stream:             bool,
     pub is_cached:             bool,
     pub final_status_code:     u16,
@@ -103,6 +105,7 @@ impl GatewayTrace {
             client_key_hash: String::new(), client_key_name: None,
             remote_addr: remote_addr.into(),
             model_alias: model_alias.into(), resolved_model: String::new(), node_group: String::new(),
+            served_host: String::new(),
             is_stream: false, is_cached: false, final_status_code: 0, final_error_label: None,
             billed_usage: UsageSnapshot::default(), upstream_usage_sum: UsageSnapshot::default(),
             sub_attempt_ids: Vec::new(), human_readable_reason: None, total_latency_ms: None,

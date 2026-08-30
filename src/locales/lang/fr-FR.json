@@ -158,9 +158,13 @@
     "no_data_hint": "Après avoir ajouté une passerelle amont et transféré une requête, les traces apparaîtront ici.",
     "col_id": "Trace ID",
     "col_model": "Modèle",
+    "col_upstream": "Amont",
     "col_status": "Statut",
     "col_latency": "Latence",
-    "col_tokens": "Tokens"
+    "col_tokens": "Tokens",
+    "export": "Exporter en Excel",
+    "export_done": "{{count}} enregistrements exportés",
+    "export_fail": "Échec de l'export"
   },
   "switch": {
     "title": "Modèles & routes",

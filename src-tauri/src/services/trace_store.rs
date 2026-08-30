@@ -23,13 +23,15 @@ pub async fn init_schema(app: &AppState) {
                  trace_id TEXT PRIMARY KEY,
                  received_at_ms INTEGER, finished_at_ms INTEGER,
                  client_key_hash TEXT, client_key_name TEXT,
-                 model_alias TEXT, resolved_model TEXT, node_group TEXT,
+                 model_alias TEXT, resolved_model TEXT, node_group TEXT, served_host TEXT,
                  is_stream INTEGER, is_cached INTEGER,
                  final_status_code INTEGER, final_error_label TEXT,
                  billed_prompt INTEGER, billed_completion INTEGER, billed_total INTEGER,
                  upstream_prompt INTEGER, upstream_completion INTEGER, upstream_total INTEGER,
                  total_latency_ms INTEGER, human_reason TEXT,
                  created_at INTEGER)"#,
+            // 旧库迁移：v0.2.23 新增 served_host（实际服务上游 host），已存在则忽略报错
+            r#"ALTER TABLE traces ADD COLUMN served_host TEXT"#,
             r#"CREATE TABLE IF NOT EXISTS client_ledger (
                  id TEXT PRIMARY KEY, trace_id TEXT,
                  client_key_hash TEXT, client_key_name TEXT, model TEXT,
@@ -84,12 +86,12 @@ pub async fn record(app: &AppState, trace: &GatewayTrace) {
     let _ = sqlx::query(
         r#"INSERT OR REPLACE INTO traces
            (trace_id, received_at_ms, finished_at_ms, client_key_hash, client_key_name,
-            model_alias, resolved_model, node_group, is_stream, is_cached,
+            model_alias, resolved_model, node_group, served_host, is_stream, is_cached,
             final_status_code, final_error_label,
             billed_prompt, billed_completion, billed_total,
             upstream_prompt, upstream_completion, upstream_total,
             total_latency_ms, human_reason, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"#)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"#)
         .bind(&trace.trace_id)
         .bind(trace.received_at_ms as i64)
         .bind(trace.finished_at_ms.map(|x| x as i64))
@@ -175,6 +177,7 @@ pub async fn recent_traces(app: &AppState, limit: i64) -> Vec<serde_json::Value>
                 "model": r.get::<String, _>("model_alias"),
                 "resolved_model": r.get::<String, _>("resolved_model"),
                 "node_group": r.get::<String, _>("node_group"),
+                "served_host": r.try_get::<String, _>("served_host").unwrap_or_default(),
                 "status": r.get::<i64, _>("final_status_code"),
                 "tokens": r.get::<i64, _>("billed_total"),
                 "latency": r.get::<Option<i64>, _>("total_latency_ms"),

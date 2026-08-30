@@ -158,9 +158,13 @@
     "no_data_hint": "Nach dem Hinzufügen eines Upstream-Gateways und einer Weiterleitung erscheinen hier Traces.",
     "col_id": "Trace-ID",
     "col_model": "Modell",
+    "col_upstream": "Upstream",
     "col_status": "Status",
     "col_latency": "Latenz",
-    "col_tokens": "Tokens"
+    "col_tokens": "Tokens",
+    "export": "Excel exportieren",
+    "export_done": "{{count}} Einträge exportiert",
+    "export_fail": "Export fehlgeschlagen"
   },
   "switch": {
     "title": "Modelle & Routen",

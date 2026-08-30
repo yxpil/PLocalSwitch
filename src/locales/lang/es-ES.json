@@ -158,9 +158,13 @@
     "no_data_hint": "Después de añadir un gateway ascendente y reenviar una solicitud, aquí aparecerán las trazas.",
     "col_id": "Trace ID",
     "col_model": "Modelo",
+    "col_upstream": "Upstream",
     "col_status": "Estado",
     "col_latency": "Latencia",
-    "col_tokens": "Tokens"
+    "col_tokens": "Tokens",
+    "export": "Exportar a Excel",
+    "export_done": "{{count}} registros exportados",
+    "export_fail": "Error al exportar"
   },
   "switch": {
     "title": "Modelos y rutas",

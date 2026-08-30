@@ -158,9 +158,13 @@
     "no_data_hint": "После добавления восходящего шлюза и пересылки запроса здесь появятся трассы.",
     "col_id": "Trace ID",
     "col_model": "Модель",
+    "col_upstream": "Апстрим",
     "col_status": "Статус",
     "col_latency": "Задержка",
-    "col_tokens": "Токены"
+    "col_tokens": "Токены",
+    "export": "Экспорт в Excel",
+    "export_done": "Экспортировано записей: {{count}}",
+    "export_fail": "Ошибка экспорта"
   },
   "switch": {
     "title": "Модели и маршруты",

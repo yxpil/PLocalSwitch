@@ -158,9 +158,13 @@
     "no_data_hint": "업스트림 게이트웨이를 추가하고 요청을 전달하면 여기에 추적이 표시됩니다.",
     "col_id": "Trace ID",
     "col_model": "모델",
+    "col_upstream": "업스트림",
     "col_status": "상태",
     "col_latency": "지연",
-    "col_tokens": "토큰"
+    "col_tokens": "토큰",
+    "export": "Excel 내보내기",
+    "export_done": "{{count}}개 기록을 내보냈습니다",
+    "export_fail": "내보내기 실패"
   },
   "switch": {
     "title": "모델 및 라우팅",

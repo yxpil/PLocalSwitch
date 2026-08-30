@@ -374,7 +374,7 @@ const Switch: React.FC = () => {
                 <div className="col-span-6 hidden md:block font-mono text-xs text-neutral-500 truncate">
                   {k.key.length > 12 ? k.key.slice(0, 4) + '\u00b7\u00b7\u00b7' + k.key.slice(-4) : k.key}
                 </div>
-                <div className="col-span-3 flex justify-end gap-1">
+                <div className="col-span-2 flex justify-end gap-1">
                   <button title={t('common.edit')} aria-label={t('common.edit')} onClick={() => openEditKey(k)}
                     className="h-7 w-7 rounded-pill bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 flex items-center justify-center">
                     <Icon name="edit-3" size={13} />

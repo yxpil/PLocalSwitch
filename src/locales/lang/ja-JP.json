@@ -158,9 +158,13 @@
     "no_data_hint": "上流ゲートウェイを追加してリクエストを転送すると、ここにトレースが表示されます。",
     "col_id": "Trace ID",
     "col_model": "モデル",
+    "col_upstream": "上流",
     "col_status": "ステータス",
     "col_latency": "遅延",
-    "col_tokens": "トークン"
+    "col_tokens": "トークン",
+    "export": "Excel エクスポート",
+    "export_done": "{{count}} 件をエクスポートしました",
+    "export_fail": "エクスポート失敗"
   },
   "switch": {
     "title": "モデルとルーティング",

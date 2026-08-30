@@ -58,6 +58,64 @@ pub async fn list_traces(state: State<'_, Arc<AppState>>) -> CommandResult<ApiRe
     Ok(ApiResponse::ok(traces))
 }
 
+/// 导出链路追踪为 Excel（xlsx）文件：前端先经 dialog save 拿到目标路径
+#[tauri::command]
+pub async fn export_traces_excel(state: State<'_, Arc<AppState>>, path: String) -> CommandResult<ApiResponse<u64>> {
+    use rust_xlsxwriter::Workbook;
+    let _ = state.bump_request();
+    let app = state.inner().clone();
+    let traces = crate::services::trace_store::recent_traces(&app, 2000).await;
+
+    let mut wb = Workbook::new();
+    let sheet = wb.add_worksheet();
+    sheet.set_name("Traces").map_err(|e| crate::error::AppError::Business(format!("{e}")))?;
+    let headers = ["Trace ID", "时间", "请求别名", "实际模型", "上游", "状态", "延时(ms)", "Tokens", "类型"];
+    for (col, h) in headers.iter().enumerate() {
+        sheet.write(0, col as u16, *h).map_err(|e| crate::error::AppError::Business(format!("{e}")))?;
+    }
+    sheet.set_column_width(0, 34).ok();
+    sheet.set_column_width(1, 20).ok();
+    sheet.set_column_width(2, 24).ok();
+    sheet.set_column_width(3, 32).ok();
+    sheet.set_column_width(4, 28).ok();
+    for (i, r) in traces.iter().enumerate() {
+        let row = (i + 1) as u32;
+        let ts_ms = r.get("created_at").and_then(|v| v.as_i64()).unwrap_or(0);
+        let ts = chrono_secs(ts_ms);
+        let _ = sheet.write(row, 0, r.get("trace_id").and_then(|v| v.as_str()).unwrap_or(""));
+        let _ = sheet.write(row, 1, ts.as_str());
+        let _ = sheet.write(row, 2, r.get("model").and_then(|v| v.as_str()).unwrap_or(""));
+        let _ = sheet.write(row, 3, r.get("resolved_model").and_then(|v| v.as_str()).unwrap_or(""));
+        let _ = sheet.write(row, 4, r.get("served_host").and_then(|v| v.as_str()).unwrap_or(""));
+        let _ = sheet.write(row, 5, r.get("status").and_then(|v| v.as_i64()).unwrap_or(0));
+        let _ = sheet.write(row, 6, r.get("latency").and_then(|v| v.as_i64()).unwrap_or(0));
+        let _ = sheet.write(row, 7, r.get("tokens").and_then(|v| v.as_i64()).unwrap_or(0));
+        let _ = sheet.write(row, 8, if r.get("is_stream").and_then(|v| v.as_bool()).unwrap_or(false) { "流式" } else { "非流式" });
+    }
+    wb.save(&path).map_err(|e| crate::error::AppError::Business(format!("写入 xlsx 失败: {e}")))?;
+    Ok(ApiResponse::ok(traces.len() as u64))
+}
+
+/// ms 时间戳 → 本地时间字符串（无 chrono 依赖，格式 yyyy-MM-dd HH:mm:ss）
+fn chrono_secs(ms: i64) -> String {
+    let secs = ms.div_euclid(1000);
+    let days = secs.div_euclid(86400);
+    let tod = secs.rem_euclid(86400);
+    let (h, mi, s) = (tod / 3600, (tod % 3600) / 60, tod % 60);
+    // civil_from_days（Howard Hinnant 算法）
+    let z = days + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{y:04}-{m:02}-{d:02} {h:02}:{mi:02}:{s:02}")
+}
+
 /// 账本汇总（读取 DB 中的客户端计费账本）
 #[tauri::command]
 pub async fn billing_summary(state: State<'_, Arc<AppState>>, window: Option<String>) -> CommandResult<ApiResponse<serde_json::Value>> {

@@ -158,9 +158,13 @@
     "no_data_hint": "新增上游閘道並轉發一次請求後，這裡會自動顯示 Trace。",
     "col_id": "Trace ID",
     "col_model": "模型",
+    "col_upstream": "上游",
     "col_status": "狀態",
     "col_latency": "延時",
-    "col_tokens": "Tokens"
+    "col_tokens": "Tokens",
+    "export": "匯出 Excel",
+    "export_done": "已匯出 {{count}} 筆記錄",
+    "export_fail": "匯出失敗"
   },
   "switch": {
     "title": "模型與路由",

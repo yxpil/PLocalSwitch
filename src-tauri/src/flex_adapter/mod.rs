@@ -148,6 +148,9 @@ pub async fn execute_stream(
                 // 锁定该候选：finish_ok 后进入流翻译（此后禁止任何重试）
                 sub.finish_ok(status.as_u16(), crate::observability::trace::UsageSnapshot::default());
                 trace.sub_attempt_ids.push(sub.sub_attempt_id.clone());
+                // trace 记录真实服务的候选（AUTOMODE 下展示实际命中的源和模型）
+                trace.resolved_model = c.real_model.clone();
+                trace.served_host = c_host.clone();
                 return Ok(build_sse_stream(state.clone(), trace, r, adapter));
             }
             tracing::warn!(target: "flex_adapter", "stream upstream status {} (node={}) → try next candidate", status.as_u16(), c.node_id);
@@ -173,7 +176,7 @@ pub async fn execute_stream(
 }
 
 /// 从 endpoint 提取 host[:port]（去协议/路径，用于错误明细展示；不含 token/查询串）
-fn endpoint_host(endpoint: &str) -> String {
+pub(crate) fn endpoint_host(endpoint: &str) -> String {
     let e = endpoint.trim().trim_end_matches('/');
     let rest = e.split_once("://").map(|(_, r)| r).unwrap_or(e);
     rest.split('/').next().unwrap_or("").to_string()

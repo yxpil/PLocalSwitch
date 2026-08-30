@@ -265,6 +265,7 @@ pub fn run_app() -> AppResult<()> {
                     commands::gateway::gateway_auto_restart,
                     commands::tray::tray_action,
                     commands::system::list_traces,
+                    commands::system::export_traces_excel,
                     commands::system::billing_summary,
                     commands::system::gateway_chat,
                     commands::system::gateway_chat_stream,

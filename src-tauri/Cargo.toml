@@ -1,6 +1,6 @@
 [package]
 name = "plocalswitch"
-version = "0.2.22"
+version = "0.2.23"
 description = "PLocalSwitch - 本地部署 LLM API 代理中转站（OpenAI v1 兼容网关）+ 桌面管理壳"
 authors = ["you"]
 license = "MIT OR Apache-2.0"
@@ -32,6 +32,7 @@ tauri = { version = "2", features = ["tray-icon", "image-png", "wry", "custom-pr
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+rust_xlsxwriter = "0.89"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
 

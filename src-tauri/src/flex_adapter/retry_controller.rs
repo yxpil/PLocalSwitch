@@ -118,7 +118,12 @@ pub async fn attempt_chain(
             sub.protocol = pp.to_string();
 
             match execute_one(c, &req, pp, &mut sub).await {
-                Ok(resp) => return AttemptOutcome::Ok(resp, sub),
+                Ok(resp) => {
+                    // trace 记录真实服务的候选（AUTOMODE 下 resolved_model 必须是实际命中的模型，而非第一个候选）
+                    trace.resolved_model = c.real_model.clone();
+                    trace.served_host = crate::flex_adapter::endpoint_host(&c.endpoint);
+                    return AttemptOutcome::Ok(resp, sub);
+                }
                 Err(e) => {
                     let lbl = e.label();
                     let status = sub.http_status_code;
