@@ -364,18 +364,16 @@ const Switch: React.FC = () => {
             <div className="grid grid-cols-12 px-5 py-2.5 text-[11px] font-medium text-neutral-500
                             bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200/70 dark:border-neutral-800/70">
               <div className="col-span-4">{t('switch.col_name')}</div>
-              <div className="col-span-4 hidden md:block">{t('switch.col_key')}</div>
-              <div className="col-span-1">{t('switch.col_group')}</div>
-              <div className="col-span-3 text-right">{t('switch.col_ops')}</div>
+              <div className="col-span-6 hidden md:block">{t('switch.col_key')}</div>
+              <div className="col-span-2 text-right">{t('switch.col_ops')}</div>
             </div>
             {keys.map((k) => (
               <div key={k.key} className={`grid grid-cols-12 px-5 py-3 text-xs items-center border-b last:border-b-0
                          border-neutral-200/50 dark:border-neutral-800/50 ${!k.enabled ? 'opacity-60' : ''}`}>
                 <div className="col-span-4 min-w-0 truncate font-medium">{k.name}</div>
-                <div className="col-span-4 hidden md:block font-mono text-xs text-neutral-500 truncate">
+                <div className="col-span-6 hidden md:block font-mono text-xs text-neutral-500 truncate">
                   {k.key.length > 12 ? k.key.slice(0, 4) + '\u00b7\u00b7\u00b7' + k.key.slice(-4) : k.key}
                 </div>
-                <div className="col-span-1"><PillBadge variant="muted" size="sm">{k.group || 'default'}</PillBadge></div>
                 <div className="col-span-3 flex justify-end gap-1">
                   <button title={t('common.edit')} aria-label={t('common.edit')} onClick={() => openEditKey(k)}
                     className="h-7 w-7 rounded-pill bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 flex items-center justify-center">
@@ -455,28 +453,21 @@ const Switch: React.FC = () => {
         </div>
       </PillCard>
 
-      {/* 上游列表 */}
+      {/* 上游列表（扁平：分组机制已废弃，仅展示节点本身） */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm text-neutral-500">{t('switch.groups_count', { groups: groups.length, nodes: totalNodes })}</div>
+          <div className="text-sm text-neutral-500">{t('switch.nodes_count', { nodes: totalNodes })}</div>
         </div>
         {loading ? (
           <div className="animate-pulse h-40 rounded-softer bg-neutral-100 dark:bg-neutral-900 border border-dashed border-neutral-200 dark:border-neutral-800" />
-        ) : groups.length === 0 ? (
+        ) : totalNodes === 0 ? (
           <PillCard padding="md">
             <div className="text-sm text-neutral-500">{t('switch.no_upstream')}</div>
           </PillCard>
         ) : (
           <div className="space-y-3">
-            {groups.map(g => g.nodes.length === 0 ? null : (
-              <div key={g.id} className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-neutral-500">
-                  <Icon name="network" size={12} />
-                  <span className="font-mono">{g.id}</span>
-                  <PillBadge variant="neutral" size="sm">{t('switch.nodes', { count: g.nodes.length })}</PillBadge>
-                </div>
-                {g.nodes.map(n => (
-                  <PillCard key={n.id} padding="sm" className={n.enabled ? '' : 'opacity-55 saturate-50'}>
+            {groups.flatMap(g => g.nodes.map(n => (
+              <PillCard key={n.id} padding="sm" className={n.enabled ? '' : 'opacity-55 saturate-50'}>
                     <div className="flex items-start gap-3">
                       <div className="h-10 w-10 shrink-0 rounded-pill bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
                         <Icon name="server" size={16} />
@@ -513,9 +504,7 @@ const Switch: React.FC = () => {
                       </div>
                     </div>
                   </PillCard>
-                ))}
-              </div>
-            ))}
+            )))}
           </div>
         )}
       </div>
@@ -599,10 +588,9 @@ const Switch: React.FC = () => {
           </>
         )}
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <PillInput label={t('switch.name')} placeholder={t('switch.name_placeholder')} value={kName} onChange={(e) => setKName(e.target.value)} />
           <PillInput label={t('switch.key')} placeholder={t('switch.key_placeholder')} value={kKey} onChange={(e) => setKKey(e.target.value)} />
-          <PillInput label={t('switch.group')} placeholder={t('switch.group_placeholder')} value={kGroup} onChange={(e) => setKGroup(e.target.value)} />
         </div>
       </PillModal>
     </div>

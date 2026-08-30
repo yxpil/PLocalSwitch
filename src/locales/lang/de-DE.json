@@ -197,6 +197,7 @@
     "upstream_protocol": "Upstream-Protokoll (Auto-Anpassung)",
     "save_upstream": "Upstream speichern",
     "groups_count": "{{groups}} Gruppen · {{nodes}} Knoten",
+    "nodes_count": "{{nodes}} Upstream-Knoten",
     "no_upstream": "Noch keine Upstream-Gateways. Klicken Sie oben rechts auf „Upstream hinzufügen“, um eines zu verbinden.",
     "nodes": "{{count}} Knoten"
   },

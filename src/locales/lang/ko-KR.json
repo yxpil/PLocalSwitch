@@ -197,6 +197,7 @@
     "upstream_protocol": "업스트림 프로토콜(자동 대응)",
     "save_upstream": "업스트림 저장",
     "groups_count": "총 {{groups}}개 그룹 · {{nodes}}개 노드",
+    "nodes_count": "상위 노드 {{nodes}}개",
     "no_upstream": "아직 업스트림 게이트웨이가 없습니다. 오른쪽 위의 '업스트림 추가'를 눌러 연결하세요.",
     "nodes": "{{count}} 노드"
   },

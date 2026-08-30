@@ -250,6 +250,11 @@ pub fn build_router(app: Arc<AppState>) -> Router {
 
     Router::new()
         .nest("/v1",     openai_api.merge(inbound_api)) // /v1/* 静态优先，wildcard 兜底
+        // 无 /v1 前缀别名：Trae 等客户端按 base_url 直接拼 /chat/completions（不追加 /v1），
+        // 不加别名会 404。与 /v1/* 同 handler，鉴权/限流 layer 完全一致
+        .route("/chat/completions", axum::routing::post(openai_routes::chat_completions_handler))
+        .route("/models",            get(openai_routes::list_models_handler))
+        .route("/embeddings",        axum::routing::post(openai_routes::embeddings_handler))
         .nest("/manage", manage_api)
         .merge(inbound_root)                            // /anthropic/... /gemini/...
         .route("/metrics", metrics_handler)

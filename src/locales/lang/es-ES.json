@@ -197,6 +197,7 @@
     "upstream_protocol": "Protocolo ascendente (auto-adaptación)",
     "save_upstream": "Guardar ascendente",
     "groups_count": "{{groups}} grupos · {{nodes}} nodos",
+    "nodes_count": "{{nodes}} nodos de upstream",
     "no_upstream": "Aún no hay gateways ascendentes. Haga clic en «Añadir ascendente» arriba a la derecha para conectar uno.",
     "nodes": "{{count}} nodos"
   },

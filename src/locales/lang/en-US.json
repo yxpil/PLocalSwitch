@@ -197,6 +197,7 @@
     "upstream_protocol": "Upstream protocol (auto-adapt)",
     "save_upstream": "Save upstream",
     "groups_count": "{{groups}} groups · {{nodes}} nodes",
+    "nodes_count": "{{nodes}} upstream nodes",
     "no_upstream": "No upstream gateways yet. Click “Add upstream” in the top-right to connect one.",
     "nodes": "{{count}} nodes",
     "aliases_title": "Model mapping",

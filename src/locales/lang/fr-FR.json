@@ -197,6 +197,7 @@
     "upstream_protocol": "Protocole amont (adaptation auto)",
     "save_upstream": "Enregistrer l'amont",
     "groups_count": "{{groups}} groupes · {{nodes}} nœuds",
+    "nodes_count": "{{nodes}} nœuds amont",
     "no_upstream": "Aucune passerelle amont. Cliquez sur « Ajouter un amont » en haut à droite pour en connecter une.",
     "nodes": "{{count}} nœuds"
   },

@@ -197,6 +197,7 @@
     "upstream_protocol": "上游协议（自动适配）",
     "save_upstream": "保存上游",
     "groups_count": "共 {{groups}} 个上游组 · {{nodes}} 个节点",
+    "nodes_count": "共 {{nodes}} 个上游节点",
     "no_upstream": "还没有上游网关。点击右上角「添加上游」接入。",
     "nodes": "{{count}} 节点",
     "aliases_title": "模型映射",

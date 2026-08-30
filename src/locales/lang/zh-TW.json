@@ -197,6 +197,7 @@
     "upstream_protocol": "上游協議（自動適配）",
     "save_upstream": "儲存上游",
     "groups_count": "共 {{groups}} 個上游組 · {{nodes}} 個節點",
+    "nodes_count": "共 {{nodes}} 個上游節點",
     "no_upstream": "還沒有上游閘道。點擊右上角「新增上游」接入。",
     "nodes": "{{count}} 節點"
   },

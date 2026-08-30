@@ -197,6 +197,7 @@
     "upstream_protocol": "上流プロトコル（自動適応）",
     "save_upstream": "上流を保存",
     "groups_count": "計 {{groups}} グループ・{{nodes}} ノード",
+    "nodes_count": "上流ノード {{nodes}} 個",
     "no_upstream": "上流ゲートウェイがまだありません。右上の「上流を追加」をクリックして接続してください。",
     "nodes": "{{count}} ノード"
   },
