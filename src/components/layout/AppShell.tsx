@@ -7,11 +7,13 @@ import { SafeRender } from '@plugins/index';
 import Icon from '@icons/index';
 
 /**
- * 无边框窗口：顶部自绘标题栏（可拖动 + 最小化/最大化/关闭嵌在网页内）
+ * 顶部标题栏：Windows/Linux 无边框自绘窗口按钮；macOS 用系统原生红绿灯（仅保留拖动条）
  */
 const AppShell: React.FC = () => {
   const { t } = useTranslation();
   const win = (globalThis as any).__TAURI_INTERNALS__ ? () => import('@tauri-apps/api/window') : null;
+  // macOS：使用系统原生红绿灯（tauri.macos.conf.json Overlay 标题栏），隐藏自绘窗口按钮
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac');
   const clampCleanup = useRef<(() => void)[]>([]);
 
   // 触摸屏/拖拽防越界：窗口移动/缩放后，把位置钳制在当前显示器范围内（避免拖出屏幕看到外部）
@@ -57,22 +59,26 @@ const AppShell: React.FC = () => {
       <div className="h-screen w-screen flex flex-row items-stretch pt-9
                       bg-white dark:bg-black text-neutral-900 dark:text-neutral-100
                       antialiased">
-        {/* 自绘标题栏（可拖动区域 + 窗口按钮嵌网页） */}
+        {/* 自绘标题栏（可拖动区域；macOS 用系统红绿灯，不渲染网页窗口按钮） */}
         <div data-tauri-drag-region
           className="absolute top-0 inset-x-0 h-9 flex items-center justify-end gap-1 pr-2 z-40 select-none
                      bg-white dark:bg-black border-b border-neutral-200/70 dark:border-neutral-800/70">
-          <button aria-label={t('shell.minimize')} onClick={minimize}
-            className="h-7 w-7 rounded-pill flex items-center justify-center text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 transition-colors">
-            <Icon name="minus" size={13} />
-          </button>
-          <button aria-label={t('shell.maximize')} onClick={toggleMaximize}
-            className="h-7 w-7 rounded-pill flex items-center justify-center text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 transition-colors">
-            <Icon name="square" size={12} />
-          </button>
-          <button aria-label={t('shell.close')} onClick={close}
-            className="h-7 w-7 rounded-pill flex items-center justify-center text-neutral-500 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white transition-colors">
-            <Icon name="x" size={14} />
-          </button>
+          {!isMac && (
+            <>
+              <button aria-label={t('shell.minimize')} onClick={minimize}
+                className="h-7 w-7 rounded-pill flex items-center justify-center text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 transition-colors">
+                <Icon name="minus" size={13} />
+              </button>
+              <button aria-label={t('shell.maximize')} onClick={toggleMaximize}
+                className="h-7 w-7 rounded-pill flex items-center justify-center text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 transition-colors">
+                <Icon name="square" size={12} />
+              </button>
+              <button aria-label={t('shell.close')} onClick={close}
+                className="h-7 w-7 rounded-pill flex items-center justify-center text-neutral-500 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 dark:hover:text-white transition-colors">
+                <Icon name="x" size={14} />
+              </button>
+            </>
+          )}
         </div>
 
         <Sidebar />

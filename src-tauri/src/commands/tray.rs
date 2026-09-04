@@ -21,11 +21,7 @@ pub fn tray_action(app: tauri::AppHandle, action: String) -> Result<(), String> 
                 let _ = win.set_focus();
             }
         }
-        "feedback" => {
-            let _ = std::process::Command::new("cmd")
-                .args(["/C", "start", "", "https://yxpil.com/feedback"])
-                .spawn();
-        }
+        "feedback" => crate::open_url("https://yxpil.com/feedback"),
         "quit" => {
             // 先优雅停止网关再退出
             let st = (*app.state::<Arc<AppState>>()).clone();

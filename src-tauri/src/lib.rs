@@ -201,11 +201,7 @@ pub fn run_app() -> AppResult<()> {
                                         let _ = win.set_focus();
                                     }
                                 }
-                                "feedback" => {
-                                    let _ = std::process::Command::new("cmd")
-                                        .args(["/C", "start", "", "https://yxpil.com/feedback"])
-                                        .spawn();
-                                }
+                                "feedback" => open_url("https://yxpil.com/feedback"),
                                 "gateway_toggle" => {
                                     if app_state.gateway_ctrl.is_running() {
                                         app_state.gateway_ctrl.request_stop();
@@ -285,8 +281,19 @@ pub fn run_app() -> AppResult<()> {
                     }
                 })
                 .build(tauri::generate_context!())?;
-            tauri_app.run(|_h, _e| {
+            tauri_app.run(|handle, e| {
                 // 关闭窗口时不再退出；仅托盘"退出"才真正结束
+                // macOS：点击 Dock 图标时重新显示主窗口
+                #[cfg(target_os = "macos")]
+                if let tauri::RunEvent::Reopen { .. } = e {
+                    if let Some(win) = handle.get_webview_window("main") {
+                        let _ = win.show();
+                        let _ = win.unminimize();
+                        let _ = win.set_focus();
+                    }
+                }
+                #[cfg(not(target_os = "macos"))]
+                let _ = (handle, e);
             });
             // 托盘退出时优雅停止网关
             app_state.gateway_ctrl.request_stop();
@@ -298,6 +305,20 @@ pub fn run_app() -> AppResult<()> {
 
         Ok(())
     })
+}
+
+/// 跨平台打开外部链接（macOS: open / Windows: cmd start / Linux: xdg-open）
+pub fn open_url(url: &str) {
+    let result = if cfg!(target_os = "macos") {
+        std::process::Command::new("open").arg(url).spawn()
+    } else if cfg!(target_os = "windows") {
+        std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn()
+    } else {
+        std::process::Command::new("xdg-open").arg(url).spawn()
+    };
+    if let Err(e) = result {
+        tracing::warn!(url = %url, error = %e, "open_url 失败");
+    }
 }
 
 /// 给代码中 `num_cpus::get()` 提供编译通路（在 num_cpus 未被引用时避免未使用警告）

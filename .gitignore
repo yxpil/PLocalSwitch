@@ -49,3 +49,7 @@ installer-src/
 src-tauri/WixTools/
 
 release-*/
+
+# 本地构建产物
+*.dmg
+*.zip

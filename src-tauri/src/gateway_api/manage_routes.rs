@@ -238,9 +238,7 @@ pub async fn lifecycle_control_handler(
         #[cfg(feature = "desktop-shell")]
         "feedback" => {
             if let Some(_h) = app.app_handle.lock().ok().and_then(|g| g.clone()) {
-                let _ = std::process::Command::new("cmd")
-                    .args(["/C", "start", "", "https://yxpil.com/feedback"])
-                    .spawn();
+                crate::open_url("https://yxpil.com/feedback");
             }
             handled = true;
         }
