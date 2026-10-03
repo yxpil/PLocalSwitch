@@ -87,4 +87,47 @@ mod tests {
         assert!(r.starts_with("https://api.deepseek.com/v1/chat"));
         assert!(r.ends_with("****"));
     }
+
+    // --- 注入/泄露防护 ---
+
+    #[test]
+    fn nested_sensitive_body_fields_are_redacted() {
+        let mut v = serde_json::json!({
+            "model": "gpt-4",
+            "nested": { "api_key": "sk-secret-123", "ok": "keep-me" },
+            "token": "tok-abc"
+        });
+        mask_json_fields(&mut v, &mock_cfg());
+        assert_eq!(v["nested"]["api_key"], "****");
+        assert_eq!(v["token"], "****");
+        // 非敏感字段原样保留
+        assert_eq!(v["nested"]["ok"], "keep-me");
+        assert_eq!(v["model"], "gpt-4");
+    }
+
+    #[test]
+    fn sensitive_headers_always_flagged() {
+        let cfg = mock_cfg();
+        for h in ["Authorization", "X-API-Key", "Cookie"] {
+            assert!(is_sensitive_header(h, &cfg), "{h} 应被判为敏感");
+        }
+        assert!(!is_sensitive_header("Content-Type", &cfg));
+    }
+
+    #[test]
+    fn endpoint_strips_embedded_credentials() {
+        // 注入：URL userinfo 内嵌用户名密码 -> 脱敏输出不得泄漏 user:pass
+        let r = mask_endpoint("https://admin:supersecret@api.host.com/v1/x", &mock_cfg());
+        assert!(!r.contains("admin"), "userinfo 用户名不应泄漏: {r}");
+        assert!(!r.contains("supersecret"), "密码不应泄漏: {r}");
+        assert!(r.contains("api.host.com"));
+    }
+
+    #[test]
+    fn disabled_masking_passes_through() {
+        let mut off = mock_cfg();
+        off.enabled = false;
+        assert_eq!(mask_token("sk-abcdef", &off), "sk-abcdef");
+        assert!(!is_sensitive_header("authorization", &off));
+    }
 }
