@@ -1,4 +1,10 @@
 # PLocalSwitch 测试说明
+- 测试完成：是（2026-10-04）
+- 测试日期：2026-10-04
+- 测试内容：单元新增 9（billing/pricing 精确优先于 glob、前缀 glob、每百万计费、未知费率=0 共 4；observability/masking 嵌套敏感字段打码、敏感 header、URL 内嵌凭据剥离、关闭透传 共 5）；既有 inbound_sniffer 协议归一化往返测试；注入 4（嵌套 api_key/token 打码、敏感 header 恒判、URL user:pass 凭据剥离）；钩子 0（协议嗅探→归一化→路由链路由既有 sniffer 往返测试覆盖）。本地 cargo test --lib 共 14 passed。
+- 运行命令：cd src-tauri; cargo test --lib（需先建最小 ../dist/index.html 占位；sqlx 为运行时查询无需 DATABASE_URL）
+- 测试框架：Rust #[cfg(test)]
+- 模型：豆包（Doubao）生成
 
 Rust 端是 Tauri + axum 的本地 LLM API 代理/中转网关，crate 位于 `src-tauri/`
 （lib 名 `plocalswitch_lib`）。测试全部为 lib 内 `#[cfg(test)]`（纯函数，不依赖真实数据库/上游）。
