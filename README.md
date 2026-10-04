@@ -82,3 +82,15 @@ curl http://127.0.0.1:8787/v1/models -H "Authorization: Bearer <client_key>"
 ## 🐛 反馈
 
 反馈请到 [yxpil.com/feedback](https://yxpil.com/feedback) 。
+
+---
+
+<div align="center">
+
+<a href="https://github.com/yxpil/PLocalSwitch">
+  <img width="100%" src="https://alittlecatgirlpanel.yxp.hk/card?repo=yxpil/PLocalSwitch" alt="gh-card · yxpil/PLocalSwitch" />
+</a>
+
+<sub>Powered by <a href="https://alittlecatgirlpanel.yxp.hk"><b>gh-card</b></a> · 粉色手写体 README 仓库名片</sub>
+
+</div>
